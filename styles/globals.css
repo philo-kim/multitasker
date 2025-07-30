@@ -18,6 +18,15 @@ body {
     Droid Sans,
     Helvetica Neue,
     sans-serif;
+  /* 전체 배경을 파란색 그라데이션으로 고정 */
+  background: linear-gradient(to bottom right, #eff6ff, #e0e7ff);
+  min-height: 100vh;
+}
+
+/* body에도 동일한 배경 적용 */
+body {
+  background: linear-gradient(to bottom right, #eff6ff, #e0e7ff);
+  background-attachment: fixed;
 }
 
 a {
