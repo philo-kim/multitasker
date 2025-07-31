@@ -753,7 +753,7 @@ export default function Multitasker() {
           </p>
         </div>
 
-        <div className="mt-4 bg-white rounded-lg shadow-sm border border-gray-200 p-4">
+        <div className="mt-4 bg-white rounded-lg shadow-sm border border-gray-200 p-4 max-w-5xl mx-auto">
           <div className="flex items-center justify-between mb-2">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 bg-gradient-to-r from-yellow-400 to-orange-500 rounded-full flex items-center justify-center">
@@ -780,7 +780,7 @@ export default function Multitasker() {
         </div>
       </div>
 
-      <div className="flex gap-6 h-[calc(100vh-320px)]">
+      <div className="flex gap-6 h-[calc(100vh-200px)]">
         <div className="w-80 flex-shrink-0">
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 h-full flex flex-col">
             <div className="p-4 border-b border-gray-100">
