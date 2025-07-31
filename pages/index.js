@@ -10,9 +10,56 @@ export default function Multitasker() {
   const [editingSubtask, setEditingSubtask] = useState(null);
   const [confirmModal, setConfirmModal] = useState(null);
   const [editingTodo, setEditingTodo] = useState(null);
+  const [undoStack, setUndoStack] = useState([]);
   const [expandedDone, setExpandedDone] = useState({});
 
-  // 실제 Claude API를 사용한 태스크 분할 함수
+  // Undo 기능을 위한 상태 저장
+  const saveStateForUndo = (action, data) => {
+    const undoItem = {
+      id: Date.now(),
+      action,
+      data,
+      timestamp: new Date().toLocaleString()
+    };
+    setUndoStack(prev => [undoItem, ...prev.slice(0, 99)]); // 최대 100개까지 저장
+  };
+
+  // Undo 실행
+  const performUndo = () => {
+    if (undoStack.length === 0) return;
+
+    const lastAction = undoStack[0];
+    setUndoStack(prev => prev.slice(1));
+
+    switch (lastAction.action) {
+      case 'DELETE_MAIN_TASK':
+        setDoingTasks(prev => [...prev, lastAction.data.task]);
+        break;
+      case 'DELETE_SUBTASK':
+        setDoingTasks(prev => prev.map(task => 
+          task.id === lastAction.data.taskId 
+            ? { ...task, subtasks: [...task.subtasks, lastAction.data.subtask] }
+            : task
+        ));
+        break;
+      case 'DELETE_TODO':
+        setTodos(prev => [...prev, lastAction.data.task]);
+        break;
+    }
+  };
+
+  // 키보드 이벤트 리스너
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'z') {
+        e.preventDefault();
+        performUndo();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [undoStack]);
   const breakDownTask = async (task) => {
     // 이미 처리 중인 태스크라면 무시
     if (isBreakingDown.includes(task.id)) return;
@@ -173,26 +220,35 @@ export default function Multitasker() {
 
   // 대주제(전체 태스크) 삭제
   const deleteMainTask = (taskId) => {
-    if (confirm('이 작업을 완전히 삭제하시겠습니까?')) {
-      setDoingTasks(prev => prev.filter(task => task.id !== taskId));
+    const task = doingTasks.find(t => t.id === taskId);
+    if (task) {
+      saveStateForUndo('DELETE_MAIN_TASK', { task });
+      setDoingTasks(prev => prev.filter(t => t.id !== taskId));
     }
   };
 
   // 소주제(서브태스크) 삭제
   const deleteSubtask = (taskId, subtaskId) => {
-    setDoingTasks(prev => prev.map(task => {
-      if (task.id === taskId) {
-        const updatedSubtasks = task.subtasks.filter(subtask => subtask.id !== subtaskId);
-        
-        // 서브태스크가 모두 삭제되면 메인 태스크도 삭제
-        if (updatedSubtasks.length === 0) {
-          return null;
+    const task = doingTasks.find(t => t.id === taskId);
+    const subtask = task?.subtasks.find(s => s.id === subtaskId);
+    
+    if (task && subtask) {
+      saveStateForUndo('DELETE_SUBTASK', { taskId, subtask });
+      
+      setDoingTasks(prev => prev.map(t => {
+        if (t.id === taskId) {
+          const updatedSubtasks = t.subtasks.filter(s => s.id !== subtaskId);
+          
+          // 서브태스크가 모두 삭제되면 메인 태스크도 삭제
+          if (updatedSubtasks.length === 0) {
+            return null;
+          }
+          
+          return { ...t, subtasks: updatedSubtasks };
         }
-        
-        return { ...task, subtasks: updatedSubtasks };
-      }
-      return task;
-    }).filter(Boolean));
+        return t;
+      }).filter(Boolean));
+    }
   };
 
   // 소주제 수정 시작
@@ -251,6 +307,7 @@ export default function Multitasker() {
   const deleteTodoTask = (taskId) => {
     const task = todos.find(t => t.id === taskId);
     if (task && confirm(`"${task.title}" 작업을 삭제하시겠습니까?`)) {
+      saveStateForUndo('DELETE_TODO', { task });
       setTodos(prev => prev.filter(t => t.id !== taskId));
     }
   };
@@ -630,8 +687,24 @@ export default function Multitasker() {
             <li>• 체크박스를 클릭해서 작은 일들을 하나씩 완료해보세요</li>
             <li>• 모든 서브태스크가 완료되면 자동으로 Done으로 이동합니다</li>
             <li>• Done에서 완료된 작업을 클릭하면 세부사항을 볼 수 있습니다</li>
+            <li>• <strong>Ctrl+Z (Mac: Cmd+Z)</strong>로 삭제한 작업을 되돌릴 수 있습니다</li>
           </ul>
         </div>
+
+        {/* Undo 알림 */}
+        {undoStack.length > 0 && (
+          <div className="fixed bottom-4 right-4 bg-gray-800 text-white px-4 py-2 rounded shadow-lg">
+            <div className="flex items-center gap-2 text-sm">
+              <span>삭제된 항목: {undoStack.length}개</span>
+              <button
+                onClick={performUndo}
+                className="bg-blue-600 hover:bg-blue-700 px-2 py-1 rounded text-xs"
+              >
+                Ctrl+Z로 되돌리기
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* 커스텀 확인 모달 */}
         {confirmModal && (
