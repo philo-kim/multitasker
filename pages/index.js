@@ -19,9 +19,7 @@ export default function Multitasker() {
   const [doneTasks, setDoneTasks] = useState([]);
   const [newTask, setNewTask] = useState('');
   const [isBreakingDown, setIsBreakingDown] = useState([]);
-  const [editingSubtask, setEditingSubtask] = useState(null);
   const [confirmModal, setConfirmModal] = useState(null);
-  const [editingTodo, setEditingTodo] = useState(null);
   const [undoStack, setUndoStack] = useState([]);
   const [expandedDone, setExpandedDone] = useState({});
   const [addTaskTimeout, setAddTaskTimeout] = useState(null);
@@ -31,6 +29,8 @@ export default function Multitasker() {
   const [showRewardWheel, setShowRewardWheel] = useState(false);
   const [isWheelSpinning, setIsWheelSpinning] = useState(false);
   const [wheelResult, setWheelResult] = useState(null);
+  const [editingItem, setEditingItem] = useState(null);
+
 
   const STORAGE_KEYS = {
     TODOS: 'multitasker_todos',
@@ -89,6 +89,63 @@ export default function Multitasker() {
       return Math.max(0, newXP);
     });
   }, [userLevel]);
+
+  // ✅ addXP 함수 아래에 이 함수들 추가
+  const startEdit = (type, item, taskId = null) => {
+    setEditingItem({
+      type,
+      id: item.id,
+      taskId,
+      values: {
+        title: item.title,
+        description: item.description || '',
+        estimatedTime: item.estimatedTime || ''
+      }
+    });
+  };
+
+  const cancelEdit = () => {
+    setEditingItem(null);
+  };
+
+  const updateEditValue = (field, value) => {
+    setEditingItem(prev => ({
+      ...prev,
+      values: { ...prev.values, [field]: value }
+    }));
+  };
+
+  const saveEdit = () => {
+    if (!editingItem) return;
+
+    if (editingItem.type === 'todo') {
+      setTodos(prev => prev.map(todo =>
+        todo.id === editingItem.id
+          ? { ...todo, title: editingItem.values.title }
+          : todo
+      ));
+    } else if (editingItem.type === 'subtask') {
+      setDoingTasks(prev => prev.map(task =>
+        task.id === editingItem.taskId
+          ? {
+            ...task,
+            subtasks: task.subtasks.map(sub =>
+              sub.id === editingItem.id
+                ? {
+                  ...sub,
+                  title: editingItem.values.title,
+                  description: editingItem.values.description,
+                  estimatedTime: editingItem.values.estimatedTime
+                }
+                : sub
+            )
+          }
+          : task
+      ));
+    }
+
+    setEditingItem(null);
+  };
 
   // ✅ 여기에 추가
   const spinRewardWheel = () => {
@@ -395,43 +452,6 @@ export default function Multitasker() {
     }
   };
 
-  const startEditSubtask = (taskId, subtask) => {
-    setEditingSubtask({
-      taskId,
-      subtaskId: subtask.id,
-      title: subtask.title,
-      description: subtask.description || '',
-      estimatedTime: subtask.estimatedTime || ''
-    });
-  };
-
-  const saveSubtaskEdit = () => {
-    if (!editingSubtask.title.trim()) return;
-
-    setDoingTasks(prev => prev.map(task => {
-      if (task.id === editingSubtask.taskId) {
-        const updatedSubtasks = task.subtasks.map(subtask =>
-          subtask.id === editingSubtask.subtaskId
-            ? {
-              ...subtask,
-              title: editingSubtask.title,
-              description: editingSubtask.description,
-              estimatedTime: editingSubtask.estimatedTime
-            }
-            : subtask
-        );
-        return { ...task, subtasks: updatedSubtasks };
-      }
-      return task;
-    }));
-
-    setEditingSubtask(null);
-  };
-
-  const cancelSubtaskEdit = () => {
-    setEditingSubtask(null);
-  };
-
   const handleConfirmDelete = () => {
     if (confirmModal) {
       setTodos(prev => prev.filter(t => t.id !== confirmModal.task.id));
@@ -451,68 +471,30 @@ export default function Multitasker() {
     }
   };
 
-  const startEditTodo = (task) => {
-    setEditingTodo({
-      id: task.id,
-      title: task.title
-    });
-  };
-
-  const saveTodoEdit = () => {
-    if (!editingTodo.title.trim()) return;
-
-    setTodos(prev => prev.map(task =>
-      task.id === editingTodo.id
-        ? { ...task, title: editingTodo.title }
-        : task
-    ));
-
-    setEditingTodo(null);
-  };
-
-  const cancelTodoEdit = () => {
-    setEditingTodo(null);
-  }; const TodoItem = ({ task }) => (
+  const TodoItem = ({ task }) => (
     <div className="bg-white rounded-lg border border-gray-200 shadow-sm hover:shadow-md transition-all duration-200 group mb-3">
-      {editingTodo && editingTodo.id === task.id ? (
+      {editingItem && editingItem.type === 'todo' && editingItem.id === task.id ? (
         <div className="p-4">
-          <textarea
-            ref={(textarea) => {
-              if (textarea) {
-                textarea.value = editingTodo.title;
-                textarea.focus();
-                textarea.setSelectionRange(textarea.value.length, textarea.value.length);
-              }
-            }}
+          <input
+            type="text"
+            value={editingItem.values.title}
+            onChange={(e) => updateEditValue('title', e.target.value)}
             onKeyDown={(e) => {
-              if (e.key === 'Enter' && !e.shiftKey) {
-                e.preventDefault();
-                setEditingTodo(prev => ({ ...prev, title: e.target.value }));
-                saveTodoEdit();
-              }
-              if (e.key === 'Escape') {
-                cancelTodoEdit();
-              }
+              if (e.key === 'Enter') saveEdit();
+              if (e.key === 'Escape') cancelEdit();
             }}
-            className="w-full text-sm resize-none border-none outline-none bg-transparent font-medium"
-            placeholder="작업 제목을 입력하세요..."
-            rows={2}
+            className="w-full text-sm font-medium border-2 border-blue-500 rounded px-3 py-2 mb-3 focus:outline-none focus:border-blue-600"
+            autoFocus
           />
-          <div className="flex items-center gap-2 mt-3">
+          <div className="flex gap-2">
             <button
-              onClick={() => {
-                const textarea = document.querySelector('textarea');
-                if (textarea) {
-                  setEditingTodo(prev => ({ ...prev, title: textarea.value }));
-                }
-                saveTodoEdit();
-              }}
+              onClick={saveEdit}
               className="px-3 py-1.5 bg-blue-600 text-white text-xs rounded-md hover:bg-blue-700 transition-colors"
             >
               저장
             </button>
             <button
-              onClick={cancelTodoEdit}
+              onClick={cancelEdit}
               className="px-3 py-1.5 bg-gray-100 text-gray-600 text-xs rounded-md hover:bg-gray-200 transition-colors"
             >
               취소
@@ -527,7 +509,7 @@ export default function Multitasker() {
             </h4>
             <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
               <button
-                onClick={() => startEditTodo(task)}
+                onClick={() => startEdit('todo', task)}
                 className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors"
                 title="수정"
               >
@@ -674,51 +656,43 @@ export default function Multitasker() {
       <div className="p-3 space-y-2 max-h-96 overflow-y-auto">
         {task.subtasks.map(subtask => (
           <div key={subtask.id} className="group">
-            {editingSubtask && editingSubtask.subtaskId === subtask.id ? (
+            {editingItem && editingItem.type === 'subtask' && editingItem.id === subtask.id ? (
               <div className="bg-gray-50 rounded-lg p-3 border border-gray-200">
                 <input
-                  ref={(input) => {
-                    if (input) {
-                      input.value = editingSubtask.title;
-                      input.focus();
-                      input.setSelectionRange(input.value.length, input.value.length);
-                    }
-                  }}
+                  type="text"
+                  value={editingItem.values.title}
+                  onChange={(e) => updateEditValue('title', e.target.value)}
                   onKeyDown={(e) => {
-                    if (e.key === 'Enter' && !e.shiftKey) {
-                      e.preventDefault();
-                      setEditingSubtask(prev => ({ ...prev, title: e.target.value }));
-                      saveSubtaskEdit();
-                    }
-                    if (e.key === 'Escape') {
-                      cancelSubtaskEdit();
-                    }
+                    if (e.key === 'Enter') saveEdit();
+                    if (e.key === 'Escape') cancelEdit();
                   }}
-                  className="w-full text-sm font-medium border-none bg-transparent outline-none mb-2"
+                  className="w-full text-sm font-medium border border-gray-300 rounded px-2 py-1 mb-2 focus:outline-none focus:border-blue-500"
                   placeholder="작업 제목"
+                  autoFocus
                 />
                 <textarea
-                  value={editingSubtask.description}
-                  onChange={(e) => setEditingSubtask(prev => ({ ...prev, description: e.target.value }))}
-                  className="w-full text-xs border-none bg-transparent outline-none resize-none mb-2"
+                  value={editingItem.values.description}
+                  onChange={(e) => updateEditValue('description', e.target.value)}
+                  className="w-full text-xs border border-gray-300 rounded px-2 py-1 mb-2 resize-none focus:outline-none focus:border-blue-500"
                   placeholder="작업 설명"
                   rows={2}
                 />
                 <input
-                  value={editingSubtask.estimatedTime}
-                  onChange={(e) => setEditingSubtask(prev => ({ ...prev, estimatedTime: e.target.value }))}
-                  className="w-full text-xs border-none bg-transparent outline-none mb-3"
+                  type="text"
+                  value={editingItem.values.estimatedTime}
+                  onChange={(e) => updateEditValue('estimatedTime', e.target.value)}
+                  className="w-full text-xs border border-gray-300 rounded px-2 py-1 mb-3 focus:outline-none focus:border-blue-500"
                   placeholder="예상 시간"
                 />
                 <div className="flex gap-2">
                   <button
-                    onClick={saveSubtaskEdit}
+                    onClick={saveEdit}
                     className="px-2 py-1 bg-blue-600 text-white text-xs rounded hover:bg-blue-700 transition-colors"
                   >
                     저장
                   </button>
                   <button
-                    onClick={cancelSubtaskEdit}
+                    onClick={cancelEdit}
                     className="px-2 py-1 bg-gray-100 text-gray-600 text-xs rounded hover:bg-gray-200 transition-colors"
                   >
                     취소
@@ -768,7 +742,7 @@ export default function Multitasker() {
 
                   <div className="opacity-0 group-hover:opacity-100 transition-opacity flex gap-1">
                     <button
-                      onClick={() => startEditSubtask(task.id, subtask)}
+                      onClick={() => startEdit('subtask', subtask, task.id)}
                       className="p-1 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors"
                       title="수정"
                     >
