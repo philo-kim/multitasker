@@ -30,6 +30,8 @@ export default function Multitasker() {
   const [isWheelSpinning, setIsWheelSpinning] = useState(false);
   const [wheelResult, setWheelResult] = useState(null);
   const [editingItem, setEditingItem] = useState(null);
+  const [rerollModal, setRerollModal] = useState(null);
+
 
 
   const STORAGE_KEYS = {
@@ -377,7 +379,7 @@ export default function Multitasker() {
         createdAt: new Date().toLocaleString()
       };
 
-      setTodos(prev => [...prev, task]);
+      setTodos(prev => [task, ...prev]);
       setNewTask('');
     }, 300),
     [newTask, todos]
@@ -388,6 +390,7 @@ export default function Multitasker() {
   };
 
   const toggleSubtask = (taskId, subtaskId) => {
+    const scrollY = window.scrollY;
     setDoingTasks(prev => prev.map(task => {
       if (task.id === taskId) {
         const subtask = task.subtasks.find(s => s.id === subtaskId);
@@ -426,6 +429,9 @@ export default function Multitasker() {
       }
       return task;
     }).filter(Boolean));
+    setTimeout(() => {
+      window.scrollTo(0, scrollY);
+    }, 0);
   };
 
   const toggleDoneExpansion = (taskId) => {
@@ -569,12 +575,27 @@ export default function Multitasker() {
     </div>
   );
 
-  const rerollTask = async (taskId) => {
+  const showRerollModal = (taskId) => {
+    const task = doingTasks.find(t => t.id === taskId);
+    if (!task) return;
+
+    setRerollModal({
+      taskId,
+      taskTitle: task.title,
+      requirements: ''
+    });
+  };
+
+  const rerollTask = async (taskId, additionalRequirements = '') => {
     const task = doingTasks.find(t => t.id === taskId);
     if (!task) return;
 
     // 다시 분할 중 상태로 설정
     setIsBreakingDown(prev => [...prev, taskId]);
+
+    const taskDescription = additionalRequirements
+      ? `${task.title}\n\n추가 요구사항: ${additionalRequirements}`
+      : task.title;
 
     try {
       const response = await fetch('/api/break-down-task', {
@@ -582,7 +603,7 @@ export default function Multitasker() {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ task: task.title }),
+        body: JSON.stringify({ task: taskDescription }),
       });
 
       const data = await response.json();
@@ -593,7 +614,7 @@ export default function Multitasker() {
       }
 
       const newSubtasks = data.subtasks.map((subtask, index) => ({
-        id: Date.now() + index + Math.random(), // 고유성 보장
+        id: Date.now() + index + Math.random(),
         title: subtask.title,
         description: subtask.description || '',
         estimatedTime: subtask.estimatedTime,
@@ -607,7 +628,6 @@ export default function Multitasker() {
         addXP(-lostXP, `리롤로 인한 진행도 초기화`);
       }
 
-      // 기존 작업의 서브태스크만 교체
       setDoingTasks(prev => prev.map(t =>
         t.id === taskId
           ? { ...t, subtasks: newSubtasks, rerolledAt: new Date().toLocaleString() }
@@ -618,14 +638,15 @@ export default function Multitasker() {
       console.error('Reroll 실패:', error);
     }
 
+    setRerollModal(null);
     setIsBreakingDown(prev => prev.filter(id => id !== taskId));
   };
 
   const DoingColumn = ({ task }) => (
     <div className="bg-white rounded-lg shadow-sm border border-gray-200 w-80 flex-shrink-0">
-      <div className="p-4 border-b border-gray-100">
+      <div className="p-4 border-b border-gray-100 min-h-[80px]">
         <div className="flex items-center justify-between">
-          <h3 className="font-semibold text-gray-900 text-sm truncate flex-1 mr-2">
+          <h3 className="font-semibold text-gray-900 text-sm flex-1 mr-2 leading-tight break-words">
             {task.title}
           </h3>
           <div className="flex items-center gap-2">
@@ -637,7 +658,7 @@ export default function Multitasker() {
             </div>
             {/* 👇 Reroll 버튼 추가 */}
             <button
-              onClick={() => rerollTask(task.id)}
+              onClick={() => showRerollModal(task.id)}
               disabled={isBreakingDown.includes(task.id)}
               className="p-1 text-gray-400 hover:text-purple-600 hover:bg-purple-50 rounded transition-colors disabled:opacity-50"
               title="다시 분할하기"
@@ -944,7 +965,7 @@ export default function Multitasker() {
             </h1>
           </div>
           <p className="text-gray-600 text-sm">
-            ADHD 친화적 멀티태스킹 도구 - 큰 작업을 작은 단위로 나누어 관리를 도와드립니다
+            AI 기반 스마트 작업 관리 - 복잡한 프로젝트를 체계적으로 분할하고 효율적으로 실행하세요
           </p>
         </div>
 
@@ -1163,10 +1184,52 @@ export default function Multitasker() {
           </div>
         </div>
       )}
+      {rerollModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl max-w-md w-full shadow-xl">
+            <div className="p-6">
+              <h3 className="text-lg font-semibold text-gray-900 mb-4">
+                작업 재분할
+              </h3>
+              <p className="text-sm text-gray-600 mb-4">
+                "{rerollModal.taskTitle}"를 다시 분할합니다.
+              </p>
+
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  추가 요구사항 (선택사항)
+                </label>
+                <textarea
+                  value={rerollModal.requirements}
+                  onChange={(e) => setRerollModal(prev => ({ ...prev, requirements: e.target.value }))}
+                  placeholder="예: 더 세분화해서, 시간을 단축하여, 특정 순서로..."
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  rows={3}
+                />
+              </div>
+
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setRerollModal(null)}
+                  className="flex-1 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
+                >
+                  취소
+                </button>
+                <button
+                  onClick={() => rerollTask(rerollModal.taskId, rerollModal.requirements)}
+                  className="flex-1 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors"
+                >
+                  재분할
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
       {/* 기능 소개 섹션 - 푸터 위에 추가 */}
       <section className="mt-16 bg-white rounded-lg shadow-sm border border-gray-200 p-8">
         <h2 className="text-2xl font-bold text-gray-900 mb-6 text-center">
-          ADHD 친화적 멀티태스킹의 특별함
+          AI 기반 스마트 작업 관리의 핵심 가치
         </h2>
 
         <div className="grid md:grid-cols-3 gap-6">
@@ -1174,10 +1237,10 @@ export default function Multitasker() {
             <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center mx-auto mb-4">
               <Sparkles className="w-6 h-6 text-blue-600" />
             </div>
-            <h3 className="font-semibold text-gray-800 mb-2">AI 자동 분할</h3>
+            <h3 className="font-semibold text-gray-800 mb-2">지능형 작업 분할</h3>
             <p className="text-sm text-gray-600">
-              큰 작업을 ADHD에 최적화된 작은 단위로 자동 분할하여
-              실행 가능한 단계로 만들어드립니다.
+              AI가 복잡한 프로젝트를 논리적이고 실행 가능한
+              단계별 작업으로 자동 분할합니다.
             </p>
           </div>
 
@@ -1185,10 +1248,10 @@ export default function Multitasker() {
             <div className="w-12 h-12 bg-yellow-100 rounded-lg flex items-center justify-center mx-auto mb-4">
               <Clock className="w-6 h-6 text-yellow-600" />
             </div>
-            <h3 className="font-semibold text-gray-800 mb-2">진행률 시각화</h3>
+            <h3 className="font-semibold text-gray-800 mb-2">실시간 진행 추적</h3>
             <p className="text-sm text-gray-600">
-              각 작업의 진행 상황을 직관적으로 확인하고
-              성취감을 느낄 수 있는 시각적 피드백을 제공합니다.
+              모든 프로젝트의 진행 상황을 한눈에 파악하고
+              병목지점을 즉시 식별할 수 있습니다.
             </p>
           </div>
 
@@ -1196,34 +1259,34 @@ export default function Multitasker() {
             <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center mx-auto mb-4">
               <CheckCircle className="w-6 h-6 text-green-600" />
             </div>
-            <h3 className="font-semibold text-gray-800 mb-2">멀티태스킹 지원</h3>
+            <h3 className="font-semibold text-gray-800 mb-2">동시 프로젝트 관리</h3>
             <p className="text-sm text-gray-600">
-              여러 작업을 동시에 진행하면서도
-              각각의 진행도를 체계적으로 관리할 수 있습니다.
+              여러 프로젝트를 동시에 진행하면서도
+              각각의 우선순위와 데드라인을 체계적으로 관리합니다.
             </p>
           </div>
         </div>
 
         <div className="mt-8 bg-blue-50 rounded-lg p-6">
           <h3 className="text-lg font-semibold text-blue-900 mb-3">
-            🧠 ADHD를 위한 특별한 설계
+            🎯 전문가를 위한 핵심 기능
           </h3>
           <div className="grid md:grid-cols-2 gap-4 text-sm text-blue-800">
             <div>
-              <h4 className="font-medium mb-2">• 집중력 향상을 위한 기능</h4>
-              <p className="text-blue-700">큰 작업을 작은 단위로 나누어 압박감을 줄이고 성취감을 높입니다.</p>
+              <h4 className="font-medium mb-2">• 전략적 작업 분해</h4>
+              <p className="text-blue-700">복잡한 업무를 논리적 단계로 나누어 실행 리스크를 최소화합니다.</p>
             </div>
             <div>
-              <h4 className="font-medium mb-2">• 시각적 진행 추적</h4>
-              <p className="text-blue-700">명확한 진행률 표시로 현재 상황을 한눈에 파악할 수 있습니다.</p>
+              <h4 className="font-medium mb-2">• 동적 우선순위 조정</h4>
+              <p className="text-blue-700">변화하는 비즈니스 요구사항에 맞춰 작업 순서를 유연하게 조정합니다.</p>
             </div>
             <div>
-              <h4 className="font-medium mb-2">• 유연한 작업 관리</h4>
-              <p className="text-blue-700">언제든 수정, 삭제, 재분할이 가능하여 변화하는 상황에 대응합니다.</p>
+              <h4 className="font-medium mb-2">• 데이터 기반 성과 분석</h4>
+              <p className="text-blue-700">완료된 작업 패턴을 분석하여 생산성 향상 인사이트를 제공합니다.</p>
             </div>
             <div>
-              <h4 className="font-medium mb-2">• 실행 취소 기능</h4>
-              <p className="text-blue-700">실수로 삭제한 작업을 쉽게 복구할 수 있는 안전망을 제공합니다.</p>
+              <h4 className="font-medium mb-2">• 무손실 작업 복구</h4>
+              <p className="text-blue-700">실수로 삭제된 작업을 완벽하게 복구하여 업무 연속성을 보장합니다.</p>
             </div>
           </div>
         </div>
