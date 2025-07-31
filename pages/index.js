@@ -1217,9 +1217,20 @@ export default function Multitasker() {
                 </button>
                 <button
                   onClick={() => rerollTask(rerollModal.taskId, rerollModal.requirements)}
-                  className="flex-1 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors"
+                  disabled={isBreakingDown.includes(rerollModal.taskId)}
+                  className={`flex-1 px-4 py-2 rounded-lg transition-colors flex items-center justify-center gap-2 ${isBreakingDown.includes(rerollModal.taskId)
+                      ? 'bg-gray-400 text-gray-200 cursor-not-allowed'
+                      : 'bg-purple-600 text-white hover:bg-purple-700'
+                    }`}
                 >
-                  재분할
+                  {isBreakingDown.includes(rerollModal.taskId) ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                      재분할 중...
+                    </>
+                  ) : (
+                    '재분할'
+                  )}
                 </button>
               </div>
             </div>
