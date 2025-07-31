@@ -13,6 +13,37 @@ export default function Multitasker() {
   const [undoStack, setUndoStack] = useState([]);
   const [expandedDone, setExpandedDone] = useState({});
 
+  // 👇 여기 바로 아래에 추가
+  const STORAGE_KEYS = {
+    TODOS: 'multitasker_todos',
+    DOING: 'multitasker_doing',
+    DONE: 'multitasker_done'
+  };
+
+  const saveToLocal = () => {
+    try {
+      localStorage.setItem(STORAGE_KEYS.TODOS, JSON.stringify(todos));
+      localStorage.setItem(STORAGE_KEYS.DOING, JSON.stringify(doingTasks));
+      localStorage.setItem(STORAGE_KEYS.DONE, JSON.stringify(doneTasks));
+    } catch (error) {
+      console.error('저장 실패:', error);
+    }
+  };
+
+  const loadFromLocal = () => {
+    try {
+      const savedTodos = localStorage.getItem(STORAGE_KEYS.TODOS);
+      const savedDoing = localStorage.getItem(STORAGE_KEYS.DOING);
+      const savedDone = localStorage.getItem(STORAGE_KEYS.DONE);
+
+      if (savedTodos) setTodos(JSON.parse(savedTodos));
+      if (savedDoing) setDoingTasks(JSON.parse(savedDoing));
+      if (savedDone) setDoneTasks(JSON.parse(savedDone));
+    } catch (error) {
+      console.error('불러오기 실패:', error);
+    }
+  };
+
   const saveStateForUndo = (action, data) => {
     const undoItem = {
       id: Date.now(),
@@ -49,6 +80,15 @@ export default function Multitasker() {
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [undoStack]);
+
+  // 👇 여기 바로 아래에 추가
+  useEffect(() => {
+    loadFromLocal();
+  }, []);
+
+  useEffect(() => {
+    saveToLocal();
+  }, [todos, doingTasks, doneTasks]);
 
   const breakDownTask = async (task) => {
     if (isBreakingDown.includes(task.id)) return;
@@ -134,22 +174,20 @@ export default function Multitasker() {
 
   const addTask = () => {
     if (!newTask.trim()) return;
-
-    // 입력값 정리
+    
     const trimmedTask = newTask.trim();
-
-    // 중복 방지를 위한 debouncing
+    
     if (todos.some(task => task.title === trimmedTask)) {
       setNewTask('');
       return;
     }
-
+    
     const task = {
-      id: `task-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`, // 더 안전한 ID 생성
+      id: `task-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
       title: trimmedTask,
       createdAt: new Date().toLocaleString()
     };
-
+    
     setTodos(prev => [...prev, task]);
     setNewTask('');
   };
