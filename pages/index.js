@@ -23,7 +23,7 @@ export default function Multitasker() {
     TODOS: 'multitasker_todos',
     DOING: 'multitasker_doing',
     DONE: 'multitasker_done',
-  USER_LEVEL: 'multitasker_level',
+    USER_LEVEL: 'multitasker_level',
     USER_XP: 'multitasker_xp'
   };
 
