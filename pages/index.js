@@ -765,78 +765,98 @@ export default function Multitasker() {
     </div>
   );
 
-  // 🔍 기존 컴포넌트들 (TodoItem, DoingColumn 등) 아래에 추가
   const RewardWheel = ({ onSpin, isSpinning, result }) => {
     const [rotation, setRotation] = useState(0);
-
+    const [isAnimating, setIsAnimating] = useState(false);
+  
     const spinWheel = () => {
-      if (isSpinning) return;
-
-      const spins = 5 + Math.random() * 5;
-      const finalRotation = spins * 360 + Math.random() * 360;
+      if (isSpinning || isAnimating) return;
+      
+      setIsAnimating(true);
+      
+      // 여러 바퀴 + 랜덤 각도 (더 많이 돌리기)
+      const spins = 8 + Math.random() * 4; // 8-12바퀴
+      const finalRotation = rotation + (spins * 360) + Math.random() * 360;
       setRotation(finalRotation);
-
-      onSpin();
+      
+      // 애니메이션 완료 후 결과 처리
+      setTimeout(() => {
+        setIsAnimating(false);
+        onSpin(); // 이때 결과 계산 및 표시
+      }, 3000);
     };
-
+  
     return (
       <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
         <div className="bg-white rounded-xl p-8 text-center max-w-md w-full mx-4 shadow-2xl">
           <h3 className="text-2xl font-bold mb-2">🎉 태스크 완료!</h3>
           <p className="text-gray-600 mb-6">보상을 받아보세요!</p>
-
+          
           {/* 돌림판 */}
           <div className="relative w-48 h-48 mx-auto mb-6">
-            <div
-              className="w-full h-full rounded-full border-4 border-gray-300 relative transition-transform duration-3000 ease-out"
-              style={{
+            <div 
+              className="w-full h-full rounded-full border-4 border-gray-300 relative"
+              style={{ 
                 transform: `rotate(${rotation}deg)`,
+                transition: isAnimating ? 'transform 3s cubic-bezier(0.25, 0.46, 0.45, 0.94)' : 'none',
                 background: `conic-gradient(
-                from 0deg,
-                #10B981 0deg 144deg,
-                #3B82F6 144deg 270deg, 
-                #F59E0B 270deg 342deg,
-                #EF4444 342deg 360deg
-              )`
+                  from 0deg,
+                  #10B981 0deg 144deg,
+                  #3B82F6 144deg 270deg, 
+                  #F59E0B 270deg 342deg,
+                  #EF4444 342deg 360deg
+                )`
               }}
             >
-              <div className="absolute top-12 left-1/2 transform -translate-x-1/2 text-white font-bold text-sm">+10</div>
-              <div className="absolute right-12 top-1/2 transform -translate-y-1/2 text-white font-bold text-sm">+20</div>
-              <div className="absolute bottom-16 left-1/2 transform -translate-x-1/2 text-white font-bold text-sm">+30</div>
-              <div className="absolute top-4 left-1/2 transform -translate-x-1/2 text-white font-bold text-sm">+50</div>
+              {/* 섹션 라벨들 - 더 명확하게 */}
+              <div className="absolute inset-0">
+                <div className="absolute top-8 left-1/2 transform -translate-x-1/2 text-white font-bold text-lg drop-shadow-lg">+10</div>
+                <div className="absolute right-8 top-1/2 transform -translate-y-1/2 text-white font-bold text-lg drop-shadow-lg">+20</div>
+                <div className="absolute bottom-8 left-1/2 transform -translate-x-1/2 text-white font-bold text-lg drop-shadow-lg">+30</div>
+                <div className="absolute left-8 top-1/2 transform -translate-y-1/2 text-white font-bold text-lg drop-shadow-lg">+50</div>
+              </div>
             </div>
-
-            <div className="absolute top-0 left-1/2 transform -translate-x-1/2 w-0 h-0 border-l-4 border-r-4 border-b-8 border-transparent border-b-red-500 z-10"></div>
+            
+            {/* 고정 화살표 - 더 명확하게 */}
+            <div className="absolute -top-2 left-1/2 transform -translate-x-1/2 w-0 h-0 border-l-6 border-r-6 border-b-12 border-transparent border-b-red-600 z-10 drop-shadow-lg"></div>
           </div>
-
-          {result && !isSpinning && (
-            <div className="mb-4 p-4 bg-gradient-to-r from-yellow-100 to-orange-100 rounded-lg">
-              <div className="text-2xl mb-2">🎊</div>
-              <div className="text-lg font-bold text-orange-800">
-                축하합니다! {result.label}을 획득했습니다!
+          
+          {/* 결과 표시 */}
+          {result && !isAnimating && (
+            <div className="mb-4 p-4 bg-gradient-to-r from-yellow-100 to-orange-100 rounded-lg border-2 border-yellow-300">
+              <div className="text-3xl mb-2">🎊</div>
+              <div className="text-xl font-bold text-orange-800">
+                축하합니다!
+              </div>
+              <div className="text-lg font-semibold text-orange-700">
+                {result.label}을 획득했습니다!
               </div>
             </div>
           )}
-
-          <button
-            onClick={spinWheel}
-            disabled={isSpinning}
-            className={`px-6 py-3 font-bold rounded-lg transition-all ${isSpinning
-                ? 'bg-gray-400 text-gray-200 cursor-not-allowed'
-                : 'bg-gradient-to-r from-purple-600 to-pink-600 text-white hover:from-purple-700 hover:to-pink-700 hover:scale-105'
+          
+          {/* 버튼 */}
+          {!result ? (
+            <button
+              onClick={spinWheel}
+              disabled={isAnimating}
+              className={`px-8 py-4 font-bold rounded-lg transition-all text-lg ${
+                isAnimating 
+                  ? 'bg-gray-400 text-gray-200 cursor-not-allowed'
+                  : 'bg-gradient-to-r from-purple-600 to-pink-600 text-white hover:from-purple-700 hover:to-pink-700 hover:scale-105 shadow-lg'
               }`}
-          >
-            {isSpinning ? (
-              <div className="flex items-center gap-2">
-                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                돌리는 중...
-              </div>
-            ) : result ? (
-              "완료!"
-            ) : (
-              "🎰 돌림판 돌리기!"
-            )}
-          </button>
+            >
+              {isAnimating ? (
+                <div className="flex items-center gap-3">
+                  <div className="w-5 h-5 border-3 border-white border-t-transparent rounded-full animate-spin"></div>
+                  돌리는 중...
+                </div>
+              ) : (
+                "🎰 돌림판 돌리기!"
+              )}
+            </button>
+          ) : (
+            <div className="text-gray-500 text-sm">3초 후 자동으로 닫힙니다...</div>
+          )}
         </div>
       </div>
     );
