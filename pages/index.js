@@ -18,7 +18,6 @@ export default function Multitasker() {
   const [userXP, setUserXP] = useState(0);
   const [showLevelUp, setShowLevelUp] = useState(false);
 
-
   const STORAGE_KEYS = {
     TODOS: 'multitasker_todos',
     DOING: 'multitasker_doing',
