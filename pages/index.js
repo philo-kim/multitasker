@@ -7,6 +7,7 @@ export default function Multitasker() {
   const [doneTasks, setDoneTasks] = useState([]);
   const [newTask, setNewTask] = useState('');
   const [isBreakingDown, setIsBreakingDown] = useState([]);
+  const [editingSubtask, setEditingSubtask] = useState(null);
   const [expandedDone, setExpandedDone] = useState({});
 
   // 실제 Claude API를 사용한 태스크 분할 함수
@@ -147,6 +148,70 @@ export default function Multitasker() {
     }));
   };
 
+  // 대주제(전체 태스크) 삭제
+  const deleteMainTask = (taskId) => {
+    if (confirm('이 작업을 완전히 삭제하시겠습니까?')) {
+      setDoingTasks(prev => prev.filter(task => task.id !== taskId));
+    }
+  };
+
+  // 소주제(서브태스크) 삭제
+  const deleteSubtask = (taskId, subtaskId) => {
+    setDoingTasks(prev => prev.map(task => {
+      if (task.id === taskId) {
+        const updatedSubtasks = task.subtasks.filter(subtask => subtask.id !== subtaskId);
+        
+        // 서브태스크가 모두 삭제되면 메인 태스크도 삭제
+        if (updatedSubtasks.length === 0) {
+          return null;
+        }
+        
+        return { ...task, subtasks: updatedSubtasks };
+      }
+      return task;
+    }).filter(Boolean));
+  };
+
+  // 소주제 수정 시작
+  const startEditSubtask = (taskId, subtask) => {
+    setEditingSubtask({
+      taskId,
+      subtaskId: subtask.id,
+      title: subtask.title,
+      description: subtask.description || '',
+      estimatedTime: subtask.estimatedTime || ''
+    });
+  };
+
+  // 소주제 수정 저장
+  const saveSubtaskEdit = () => {
+    if (!editingSubtask.title.trim()) return;
+
+    setDoingTasks(prev => prev.map(task => {
+      if (task.id === editingSubtask.taskId) {
+        const updatedSubtasks = task.subtasks.map(subtask =>
+          subtask.id === editingSubtask.subtaskId
+            ? {
+                ...subtask,
+                title: editingSubtask.title,
+                description: editingSubtask.description,
+                estimatedTime: editingSubtask.estimatedTime
+              }
+            : subtask
+        );
+        return { ...task, subtasks: updatedSubtasks };
+      }
+      return task;
+    }));
+
+    setEditingSubtask(null);
+  };
+
+  // 소주제 수정 취소
+  const cancelSubtaskEdit = () => {
+    setEditingSubtask(null);
+  };
+
   const TodoItem = ({ task }) => (
     <div className="bg-white rounded-lg p-4 mb-3 shadow-sm border border-gray-200 hover:shadow-md transition-shadow">
       <div className="flex items-center justify-between">
@@ -178,41 +243,109 @@ export default function Multitasker() {
   const DoingColumn = ({ task }) => (
     <div className="flex-shrink-0 w-80 bg-yellow-50 rounded-lg p-4 h-fit">
       <div className="flex items-center justify-between mb-4">
-        <h3 className="font-semibold text-gray-700 truncate">{task.title}</h3>
-        <span className="bg-yellow-200 text-yellow-800 px-2 py-1 rounded-full text-xs">
-          {task.subtasks.filter(s => s.completed).length}/{task.subtasks.length}
-        </span>
+        <h3 className="font-semibold text-gray-700 truncate flex-1 mr-2">{task.title}</h3>
+        <div className="flex items-center gap-2">
+          <span className="bg-yellow-200 text-yellow-800 px-2 py-1 rounded-full text-xs">
+            {task.subtasks.filter(s => s.completed).length}/{task.subtasks.length}
+          </span>
+          <button
+            onClick={() => deleteMainTask(task.id)}
+            className="text-red-500 hover:text-red-700 p-1"
+            title="전체 작업 삭제"
+          >
+            <MoreHorizontal className="w-4 h-4" />
+          </button>
+        </div>
       </div>
       
       <div className="space-y-2">
         {task.subtasks.map(subtask => (
-          <div key={subtask.id} className="bg-white rounded p-3 border border-gray-200">
-            <div className="flex items-start gap-3">
-              <button
-                onClick={() => toggleSubtask(task.id, subtask.id)}
-                className={`mt-0.5 ${subtask.completed ? 'text-green-600' : 'text-gray-400'}`}
-              >
-                {subtask.completed ? (
-                  <CheckCircle className="w-5 h-5" />
-                ) : (
-                  <Circle className="w-5 h-5" />
-                )}
-              </button>
-              <div className="flex-1">
-                <h5 className={`text-sm font-medium ${subtask.completed ? 'line-through text-gray-500' : 'text-gray-800'}`}>
-                  {subtask.title}
-                </h5>
-                {subtask.description && (
-                  <p className="text-xs text-gray-600 mt-1">{subtask.description}</p>
-                )}
-                {subtask.estimatedTime && (
-                  <div className="flex items-center gap-1 mt-1">
-                    <Clock className="w-3 h-3 text-gray-400" />
-                    <span className="text-xs text-gray-500">{subtask.estimatedTime}</span>
-                  </div>
-                )}
+          <div key={subtask.id} className="bg-white rounded p-3 border border-gray-200 group">
+            {editingSubtask && editingSubtask.subtaskId === subtask.id ? (
+              // 편집 모드
+              <div className="space-y-2">
+                <input
+                  value={editingSubtask.title}
+                  onChange={(e) => setEditingSubtask(prev => ({ ...prev, title: e.target.value }))}
+                  className="w-full text-sm font-medium border rounded px-2 py-1"
+                  placeholder="작업 제목"
+                />
+                <input
+                  value={editingSubtask.description}
+                  onChange={(e) => setEditingSubtask(prev => ({ ...prev, description: e.target.value }))}
+                  className="w-full text-xs border rounded px-2 py-1"
+                  placeholder="작업 설명"
+                />
+                <input
+                  value={editingSubtask.estimatedTime}
+                  onChange={(e) => setEditingSubtask(prev => ({ ...prev, estimatedTime: e.target.value }))}
+                  className="w-full text-xs border rounded px-2 py-1"
+                  placeholder="예상 시간"
+                />
+                <div className="flex gap-2">
+                  <button
+                    onClick={saveSubtaskEdit}
+                    className="px-2 py-1 bg-green-600 text-white text-xs rounded hover:bg-green-700"
+                  >
+                    저장
+                  </button>
+                  <button
+                    onClick={cancelSubtaskEdit}
+                    className="px-2 py-1 bg-gray-500 text-white text-xs rounded hover:bg-gray-600"
+                  >
+                    취소
+                  </button>
+                </div>
               </div>
-            </div>
+            ) : (
+              // 일반 모드
+              <div className="flex items-start gap-3">
+                <button
+                  onClick={() => toggleSubtask(task.id, subtask.id)}
+                  className={`mt-0.5 ${subtask.completed ? 'text-green-600' : 'text-gray-400'}`}
+                >
+                  {subtask.completed ? (
+                    <CheckCircle className="w-5 h-5" />
+                  ) : (
+                    <Circle className="w-5 h-5" />
+                  )}
+                </button>
+                <div className="flex-1">
+                  <h5 className={`text-sm font-medium ${subtask.completed ? 'line-through text-gray-500' : 'text-gray-800'}`}>
+                    {subtask.title}
+                  </h5>
+                  {subtask.description && (
+                    <p className="text-xs text-gray-600 mt-1">{subtask.description}</p>
+                  )}
+                  {subtask.estimatedTime && (
+                    <div className="flex items-center gap-1 mt-1">
+                      <Clock className="w-3 h-3 text-gray-400" />
+                      <span className="text-xs text-gray-500">{subtask.estimatedTime}</span>
+                    </div>
+                  )}
+                </div>
+                <div className="opacity-0 group-hover:opacity-100 transition-opacity flex gap-1">
+                  <button
+                    onClick={() => startEditSubtask(task.id, subtask)}
+                    className="text-blue-500 hover:text-blue-700 p-1"
+                    title="수정"
+                  >
+                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                    </svg>
+                  </button>
+                  <button
+                    onClick={() => deleteSubtask(task.id, subtask.id)}
+                    className="text-red-500 hover:text-red-700 p-1"
+                    title="삭제"
+                  >
+                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                    </svg>
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         ))}
       </div>
