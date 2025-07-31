@@ -9,6 +9,7 @@ export default function Multitasker() {
   const [isBreakingDown, setIsBreakingDown] = useState([]);
   const [editingSubtask, setEditingSubtask] = useState(null);
   const [confirmModal, setConfirmModal] = useState(null);
+  const [editingTodo, setEditingTodo] = useState(null);
   const [expandedDone, setExpandedDone] = useState({});
 
   // 실제 Claude API를 사용한 태스크 분할 함수
@@ -246,31 +247,116 @@ export default function Multitasker() {
     setConfirmModal(null);
   };
 
+  // To do 작업 삭제
+  const deleteTodoTask = (taskId) => {
+    const task = todos.find(t => t.id === taskId);
+    if (task && confirm(`"${task.title}" 작업을 삭제하시겠습니까?`)) {
+      setTodos(prev => prev.filter(t => t.id !== taskId));
+    }
+  };
+
+  // To do 작업 수정 시작
+  const startEditTodo = (task) => {
+    setEditingTodo({
+      id: task.id,
+      title: task.title
+    });
+  };
+
+  // To do 작업 수정 저장
+  const saveTodoEdit = () => {
+    if (!editingTodo.title.trim()) return;
+
+    setTodos(prev => prev.map(task =>
+      task.id === editingTodo.id
+        ? { ...task, title: editingTodo.title }
+        : task
+    ));
+
+    setEditingTodo(null);
+  };
+
+  // To do 작업 수정 취소
+  const cancelTodoEdit = () => {
+    setEditingTodo(null);
+  };
+
   const TodoItem = ({ task }) => (
-    <div className="bg-white rounded-lg p-4 mb-3 shadow-sm border border-gray-200 hover:shadow-md transition-shadow">
-      <div className="flex items-center justify-between">
-        <div className="flex-1">
-          <h4 className="font-medium text-gray-800 mb-1">{task.title}</h4>
-          <p className="text-xs text-gray-500">{task.createdAt}</p>
+    <div className="bg-white rounded-lg p-4 mb-3 shadow-sm border border-gray-200 hover:shadow-md transition-shadow group">
+      {editingTodo && editingTodo.id === task.id ? (
+        // 편집 모드
+        <div className="space-y-3">
+          <input
+            value={editingTodo.title}
+            onChange={(e) => setEditingTodo(prev => ({ ...prev, title: e.target.value }))}
+            onKeyPress={(e) => e.key === 'Enter' && saveTodoEdit()}
+            className="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+            placeholder="작업 제목"
+            autoFocus
+          />
+          <div className="flex gap-2">
+            <button
+              onClick={saveTodoEdit}
+              className="px-3 py-1 bg-green-600 text-white text-sm rounded hover:bg-green-700"
+            >
+              저장
+            </button>
+            <button
+              onClick={cancelTodoEdit}
+              className="px-3 py-1 bg-gray-500 text-white text-sm rounded hover:bg-gray-600"
+            >
+              취소
+            </button>
+          </div>
         </div>
-        <button
-          onClick={() => breakDownTask(task)}
-          disabled={isBreakingDown.includes(task.id)}
-          className="ml-3 px-3 py-1 bg-blue-600 text-white text-sm rounded hover:bg-blue-700 disabled:opacity-50 flex items-center gap-1"
-        >
-          {isBreakingDown.includes(task.id) ? (
-            <>
-              <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-              분할 중...
-            </>
-          ) : (
-            <>
-              <Play className="w-3 h-3" />
-              시작
-            </>
-          )}
-        </button>
-      </div>
+      ) : (
+        // 일반 모드
+        <div className="flex items-center justify-between">
+          <div className="flex-1">
+            <h4 className="font-medium text-gray-800 mb-1">{task.title}</h4>
+            <p className="text-xs text-gray-500">{task.createdAt}</p>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => breakDownTask(task)}
+              disabled={isBreakingDown.includes(task.id)}
+              className="px-3 py-1 bg-blue-600 text-white text-sm rounded hover:bg-blue-700 disabled:opacity-50 flex items-center gap-1"
+            >
+              {isBreakingDown.includes(task.id) ? (
+                <>
+                  <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                  분할 중...
+                </>
+              ) : (
+                <>
+                  <Play className="w-3 h-3" />
+                  시작
+                </>
+              )}
+            </button>
+            <div className="opacity-0 group-hover:opacity-100 transition-opacity flex gap-1">
+              <button
+                onClick={() => startEditTodo(task)}
+                className="text-blue-500 hover:text-blue-700 p-1"
+                title="수정"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                </svg>
+              </button>
+              <button
+                onClick={() => deleteTodoTask(task.id)}
+                className="text-red-500 hover:text-red-700 p-1"
+                title="삭제"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                </svg>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 
