@@ -865,6 +865,71 @@ export default function Multitasker() {
             </div>
           </div>
         )}
+        {/* 기능 소개 섹션 - 푸터 위에 추가 */}
+        <section className="mt-16 bg-white rounded-lg shadow-sm border border-gray-200 p-8">
+          <h2 className="text-2xl font-bold text-gray-900 mb-6 text-center">
+            ADHD 친화적 멀티태스킹의 특별함
+          </h2>
+          
+          <div className="grid md:grid-cols-3 gap-6">
+            <div className="text-center">
+              <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center mx-auto mb-4">
+                <Sparkles className="w-6 h-6 text-blue-600" />
+              </div>
+              <h3 className="font-semibold text-gray-800 mb-2">AI 자동 분할</h3>
+              <p className="text-sm text-gray-600">
+                큰 작업을 ADHD에 최적화된 작은 단위로 자동 분할하여 
+                실행 가능한 단계로 만들어드립니다.
+              </p>
+            </div>
+            
+            <div className="text-center">
+              <div className="w-12 h-12 bg-yellow-100 rounded-lg flex items-center justify-center mx-auto mb-4">
+                <Clock className="w-6 h-6 text-yellow-600" />
+              </div>
+              <h3 className="font-semibold text-gray-800 mb-2">진행률 시각화</h3>
+              <p className="text-sm text-gray-600">
+                각 작업의 진행 상황을 직관적으로 확인하고
+                성취감을 느낄 수 있는 시각적 피드백을 제공합니다.
+              </p>
+            </div>
+            
+            <div className="text-center">
+              <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center mx-auto mb-4">
+                <CheckCircle className="w-6 h-6 text-green-600" />
+              </div>
+              <h3 className="font-semibold text-gray-800 mb-2">멀티태스킹 지원</h3>
+              <p className="text-sm text-gray-600">
+                여러 작업을 동시에 진행하면서도 
+                각각의 진행도를 체계적으로 관리할 수 있습니다.
+              </p>
+            </div>
+          </div>
+
+          <div className="mt-8 bg-blue-50 rounded-lg p-6">
+            <h3 className="text-lg font-semibold text-blue-900 mb-3">
+              🧠 ADHD를 위한 특별한 설계
+            </h3>
+            <div className="grid md:grid-cols-2 gap-4 text-sm text-blue-800">
+              <div>
+                <h4 className="font-medium mb-2">• 집중력 향상을 위한 기능</h4>
+                <p className="text-blue-700">큰 작업을 작은 단위로 나누어 압박감을 줄이고 성취감을 높입니다.</p>
+              </div>
+              <div>
+                <h4 className="font-medium mb-2">• 시각적 진행 추적</h4>
+                <p className="text-blue-700">명확한 진행률 표시로 현재 상황을 한눈에 파악할 수 있습니다.</p>
+              </div>
+              <div>
+                <h4 className="font-medium mb-2">• 유연한 작업 관리</h4>
+                <p className="text-blue-700">언제든 수정, 삭제, 재분할이 가능하여 변화하는 상황에 대응합니다.</p>
+              </div>
+              <div>
+                <h4 className="font-medium mb-2">• 실행 취소 기능</h4>
+                <p className="text-blue-700">실수로 삭제한 작업을 쉽게 복구할 수 있는 안전망을 제공합니다.</p>
+              </div>
+            </div>
+          </div>
+        </section>
       </div>
     </div>
   );
