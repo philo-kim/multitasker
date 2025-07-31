@@ -1,8 +1,19 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { debounce } from 'lodash'; // npm install lodash 필요
 import { Plus, MoreHorizontal, Clock, CheckCircle, Circle, Sparkles, ChevronDown, ChevronRight, Play, Check, X, Edit2, Trash2 } from 'lucide-react';
 
 export default function Multitasker() {
+  const debounce = (func, wait) => {
+    let timeout;
+    return function executedFunction(...args) {
+      const later = () => {
+        clearTimeout(timeout);
+        func(...args);
+      };
+      clearTimeout(timeout);
+      timeout = setTimeout(later, wait);
+    };
+  };
+
   const [todos, setTodos] = useState([]);
   const [doingTasks, setDoingTasks] = useState([]);
   const [doneTasks, setDoneTasks] = useState([]);
@@ -220,7 +231,6 @@ export default function Multitasker() {
     setIsBreakingDown(prev => prev.filter(id => id !== task.id));
   };
 
-  // 기존 addTask 함수를 이것으로 교체
   const debouncedAddTask = useCallback(
     debounce(() => {
       if (!newTask.trim() || newTask.trim().length < 2) return;
