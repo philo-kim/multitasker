@@ -31,7 +31,6 @@ export default function Multitasker() {
   const [showRewardWheel, setShowRewardWheel] = useState(false);
   const [isWheelSpinning, setIsWheelSpinning] = useState(false);
   const [wheelResult, setWheelResult] = useState(null);
-  const [isComposing, setIsComposing] = useState(false);
 
   const STORAGE_KEYS = {
     TODOS: 'multitasker_todos',
@@ -480,28 +479,15 @@ export default function Multitasker() {
           <textarea
             ref={(textarea) => {
               if (textarea) {
+                textarea.value = editingTodo.title;
                 textarea.focus();
                 textarea.setSelectionRange(textarea.value.length, textarea.value.length);
               }
             }}
-            value={editingTodo.title}
-            onChange={(e) => {
-              // 한글 입력 중이 아닐 때만 상태 업데이트
-              if (!isComposing) {
-                setEditingTodo(prev => ({ ...prev, title: e.target.value }));
-              }
-            }}
-            onCompositionStart={() => {
-              setIsComposing(true);
-            }}
-            onCompositionEnd={(e) => {
-              setIsComposing(false);
-              // 한글 입력 완료 시 최종 값으로 업데이트
-              setEditingTodo(prev => ({ ...prev, title: e.target.value }));
-            }}
             onKeyDown={(e) => {
               if (e.key === 'Enter' && !e.shiftKey) {
                 e.preventDefault();
+                setEditingTodo(prev => ({ ...prev, title: e.target.value }));
                 saveTodoEdit();
               }
               if (e.key === 'Escape') {
@@ -514,7 +500,13 @@ export default function Multitasker() {
           />
           <div className="flex items-center gap-2 mt-3">
             <button
-              onClick={saveTodoEdit}
+              onClick={() => {
+                const textarea = document.querySelector('textarea');
+                if (textarea) {
+                  setEditingTodo(prev => ({ ...prev, title: textarea.value }));
+                }
+                saveTodoEdit();
+              }}
               className="px-3 py-1.5 bg-blue-600 text-white text-xs rounded-md hover:bg-blue-700 transition-colors"
             >
               저장
@@ -687,20 +679,20 @@ export default function Multitasker() {
                 <input
                   ref={(input) => {
                     if (input) {
+                      input.value = editingSubtask.title;
                       input.focus();
                       input.setSelectionRange(input.value.length, input.value.length);
                     }
                   }}
-                  value={editingSubtask.title}
-                  onChange={(e) => {
-                    if (!isComposing) {
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                      e.preventDefault();
                       setEditingSubtask(prev => ({ ...prev, title: e.target.value }));
+                      saveSubtaskEdit();
                     }
-                  }}
-                  onCompositionStart={() => setIsComposing(true)}
-                  onCompositionEnd={(e) => {
-                    setIsComposing(false);
-                    setEditingSubtask(prev => ({ ...prev, title: e.target.value }));
+                    if (e.key === 'Escape') {
+                      cancelSubtaskEdit();
+                    }
                   }}
                   className="w-full text-sm font-medium border-none bg-transparent outline-none mb-2"
                   placeholder="작업 제목"
