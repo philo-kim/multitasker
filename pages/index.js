@@ -477,6 +477,12 @@ export default function Multitasker() {
       {editingTodo && editingTodo.id === task.id ? (
         <div className="p-4">
           <textarea
+            ref={(textarea) => {
+              if (textarea) {
+                textarea.focus();
+                textarea.setSelectionRange(textarea.value.length, textarea.value.length);
+              }
+            }}
             value={editingTodo.title}
             onChange={(e) => setEditingTodo(prev => ({ ...prev, title: e.target.value }))}
             onKeyDown={(e) => {
@@ -490,7 +496,6 @@ export default function Multitasker() {
             }}
             className="w-full text-sm resize-none border-none outline-none bg-transparent font-medium"
             placeholder="작업 제목을 입력하세요..."
-            autoFocus
             rows={2}
           />
           <div className="flex items-center gap-2 mt-3">
@@ -666,6 +671,12 @@ export default function Multitasker() {
             {editingSubtask && editingSubtask.subtaskId === subtask.id ? (
               <div className="bg-gray-50 rounded-lg p-3 border border-gray-200">
                 <input
+                  ref={(input) => {
+                    if (input) {
+                      input.focus();
+                      input.setSelectionRange(input.value.length, input.value.length);
+                    }
+                  }}
                   value={editingSubtask.title}
                   onChange={(e) => setEditingSubtask(prev => ({ ...prev, title: e.target.value }))}
                   className="w-full text-sm font-medium border-none bg-transparent outline-none mb-2"
@@ -768,35 +779,35 @@ export default function Multitasker() {
   const RewardWheel = ({ onSpin, isSpinning, result }) => {
     const [rotation, setRotation] = useState(0);
     const [isAnimating, setIsAnimating] = useState(false);
-  
+
     const spinWheel = () => {
       if (isSpinning || isAnimating) return;
-      
+
       setIsAnimating(true);
-      
+
       // 여러 바퀴 + 랜덤 각도 (더 많이 돌리기)
       const spins = 8 + Math.random() * 4; // 8-12바퀴
       const finalRotation = rotation + (spins * 360) + Math.random() * 360;
       setRotation(finalRotation);
-      
+
       // 애니메이션 완료 후 결과 처리
       setTimeout(() => {
         setIsAnimating(false);
         onSpin(); // 이때 결과 계산 및 표시
       }, 3000);
     };
-  
+
     return (
       <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
         <div className="bg-white rounded-xl p-8 text-center max-w-md w-full mx-4 shadow-2xl">
           <h3 className="text-2xl font-bold mb-2">🎉 태스크 완료!</h3>
           <p className="text-gray-600 mb-6">보상을 받아보세요!</p>
-          
+
           {/* 돌림판 */}
           <div className="relative w-48 h-48 mx-auto mb-6">
-            <div 
+            <div
               className="w-full h-full rounded-full border-4 border-gray-300 relative"
-              style={{ 
+              style={{
                 transform: `rotate(${rotation}deg)`,
                 transition: isAnimating ? 'transform 3s cubic-bezier(0.25, 0.46, 0.45, 0.94)' : 'none',
                 background: `conic-gradient(
@@ -816,11 +827,11 @@ export default function Multitasker() {
                 <div className="absolute left-8 top-1/2 transform -translate-y-1/2 text-white font-bold text-lg drop-shadow-lg">+50</div>
               </div>
             </div>
-            
+
             {/* 고정 화살표 - 더 명확하게 */}
             <div className="absolute -top-2 left-1/2 transform -translate-x-1/2 w-0 h-0 border-l-6 border-r-6 border-b-12 border-transparent border-b-red-600 z-10 drop-shadow-lg"></div>
           </div>
-          
+
           {/* 결과 표시 */}
           {result && !isAnimating && (
             <div className="mb-4 p-4 bg-gradient-to-r from-yellow-100 to-orange-100 rounded-lg border-2 border-yellow-300">
@@ -833,17 +844,16 @@ export default function Multitasker() {
               </div>
             </div>
           )}
-          
+
           {/* 버튼 */}
           {!result ? (
             <button
               onClick={spinWheel}
               disabled={isAnimating}
-              className={`px-8 py-4 font-bold rounded-lg transition-all text-lg ${
-                isAnimating 
-                  ? 'bg-gray-400 text-gray-200 cursor-not-allowed'
-                  : 'bg-gradient-to-r from-purple-600 to-pink-600 text-white hover:from-purple-700 hover:to-pink-700 hover:scale-105 shadow-lg'
-              }`}
+              className={`px-8 py-4 font-bold rounded-lg transition-all text-lg ${isAnimating
+                ? 'bg-gray-400 text-gray-200 cursor-not-allowed'
+                : 'bg-gradient-to-r from-purple-600 to-pink-600 text-white hover:from-purple-700 hover:to-pink-700 hover:scale-105 shadow-lg'
+                }`}
             >
               {isAnimating ? (
                 <div className="flex items-center gap-3">
