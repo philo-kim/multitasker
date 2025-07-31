@@ -18,7 +18,7 @@ body {
     Droid Sans,
     Helvetica Neue,
     sans-serif;
-  /* 전체 배경을 파란색 그라데이션으로 고정 */
+  /* 전체 배경을 기존과 동일한 blue-50 to indigo-100 그라데이션으로 고정 */
   background: linear-gradient(to bottom right, #eff6ff, #e0e7ff);
   min-height: 100vh;
 }
