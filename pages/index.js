@@ -513,14 +513,6 @@ export default function Multitasker() {
     const task = doingTasks.find(t => t.id === taskId);
     if (!task) return;
 
-    // ✅ 이 부분을 rerollTask 함수 시작 부분에 추가
-    const completedSubtasks = task.subtasks.filter(s => s.completed);
-    const lostXP = completedSubtasks.length * calculateXP('SUBTASK_COMPLETE');
-
-    if (lostXP > 0) {
-      addXP(-lostXP, `리롤로 인한 진행도 초기화`);
-    }
-
     // 다시 분할 중 상태로 설정
     setIsBreakingDown(prev => [...prev, taskId]);
 
@@ -547,6 +539,13 @@ export default function Multitasker() {
         estimatedTime: subtask.estimatedTime,
         completed: false
       }));
+
+      const completedSubtasks = task.subtasks.filter(s => s.completed);
+      const lostXP = completedSubtasks.length * calculateXP('SUBTASK_COMPLETE');
+
+      if (lostXP > 0) {
+        addXP(-lostXP, `리롤로 인한 진행도 초기화`);
+      }
 
       // 기존 작업의 서브태스크만 교체
       setDoingTasks(prev => prev.map(t =>
