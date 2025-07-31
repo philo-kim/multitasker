@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, MoreHorizontal, Clock, CheckCircle, Circle, Sparkles, ChevronDown, ChevronRight, Play, Check } from 'lucide-react';
+import { Plus, MoreHorizontal, Clock, CheckCircle, Circle, Sparkles, ChevronDown, ChevronRight, Play, Check, X, Edit2, Trash2 } from 'lucide-react';
 
 export default function Multitasker() {
   const [todos, setTodos] = useState([]);
@@ -60,6 +60,8 @@ export default function Multitasker() {
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [undoStack]);
+
+  // 실제 Claude API를 사용한 태스크 분할 함수
   const breakDownTask = async (task) => {
     // 이미 처리 중인 태스크라면 무시
     if (isBreakingDown.includes(task.id)) return;
@@ -306,7 +308,7 @@ export default function Multitasker() {
   // To do 작업 삭제
   const deleteTodoTask = (taskId) => {
     const task = todos.find(t => t.id === taskId);
-    if (task && confirm(`"${task.title}" 작업을 삭제하시겠습니까?`)) {
+    if (task) {
       saveStateForUndo('DELETE_TODO', { task });
       setTodos(prev => prev.filter(t => t.id !== taskId));
     }
@@ -339,28 +341,37 @@ export default function Multitasker() {
   };
 
   const TodoItem = ({ task }) => (
-    <div className="bg-white rounded-lg p-4 mb-3 shadow-sm border border-gray-200 hover:shadow-md transition-shadow group">
+    <div className="bg-white rounded-lg border border-gray-200 shadow-sm hover:shadow-md transition-all duration-200 group mb-3">
       {editingTodo && editingTodo.id === task.id ? (
         // 편집 모드
-        <div className="space-y-3">
-          <input
+        <div className="p-4">
+          <textarea
             value={editingTodo.title}
             onChange={(e) => setEditingTodo(prev => ({ ...prev, title: e.target.value }))}
-            onKeyPress={(e) => e.key === 'Enter' && saveTodoEdit()}
-            className="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
-            placeholder="작업 제목"
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                saveTodoEdit();
+              }
+              if (e.key === 'Escape') {
+                cancelTodoEdit();
+              }
+            }}
+            className="w-full text-sm resize-none border-none outline-none bg-transparent font-medium"
+            placeholder="작업 제목을 입력하세요..."
             autoFocus
+            rows={2}
           />
-          <div className="flex gap-2">
+          <div className="flex items-center gap-2 mt-3">
             <button
               onClick={saveTodoEdit}
-              className="px-3 py-1 bg-green-600 text-white text-sm rounded hover:bg-green-700"
+              className="px-3 py-1.5 bg-blue-600 text-white text-xs rounded-md hover:bg-blue-700 transition-colors"
             >
               저장
             </button>
             <button
               onClick={cancelTodoEdit}
-              className="px-3 py-1 bg-gray-500 text-white text-sm rounded hover:bg-gray-600"
+              className="px-3 py-1.5 bg-gray-100 text-gray-600 text-xs rounded-md hover:bg-gray-200 transition-colors"
             >
               취소
             </button>
@@ -368,16 +379,35 @@ export default function Multitasker() {
         </div>
       ) : (
         // 일반 모드
-        <div className="flex items-center justify-between">
-          <div className="flex-1">
-            <h4 className="font-medium text-gray-800 mb-1">{task.title}</h4>
-            <p className="text-xs text-gray-500">{task.createdAt}</p>
+        <div className="p-4">
+          <div className="flex items-start justify-between mb-3">
+            <h4 className="text-sm font-medium text-gray-900 leading-5 flex-1 pr-2">
+              {task.title}
+            </h4>
+            <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+              <button
+                onClick={() => startEditTodo(task)}
+                className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors"
+                title="수정"
+              >
+                <Edit2 className="w-3.5 h-3.5" />
+              </button>
+              <button
+                onClick={() => deleteTodoTask(task.id)}
+                className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
+                title="삭제"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+              </button>
+            </div>
           </div>
-          <div className="flex items-center gap-2">
+          
+          <div className="flex items-center justify-between">
+            <span className="text-xs text-gray-500">{task.createdAt}</span>
             <button
               onClick={() => breakDownTask(task)}
               disabled={isBreakingDown.includes(task.id)}
-              className="px-3 py-1 bg-blue-600 text-white text-sm rounded hover:bg-blue-700 disabled:opacity-50 flex items-center gap-1"
+              className="px-3 py-1.5 bg-blue-600 text-white text-xs font-medium rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-1.5"
             >
               {isBreakingDown.includes(task.id) ? (
                 <>
@@ -391,26 +421,6 @@ export default function Multitasker() {
                 </>
               )}
             </button>
-            <div className="opacity-0 group-hover:opacity-100 transition-opacity flex gap-1">
-              <button
-                onClick={() => startEditTodo(task)}
-                className="text-blue-500 hover:text-blue-700 p-1"
-                title="수정"
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                </svg>
-              </button>
-              <button
-                onClick={() => deleteTodoTask(task.id)}
-                className="text-red-500 hover:text-red-700 p-1"
-                title="삭제"
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                </svg>
-              </button>
-            </div>
           </div>
         </div>
       )}
@@ -418,57 +428,221 @@ export default function Multitasker() {
   );
 
   const DoingColumn = ({ task }) => (
-    <div className="flex-shrink-0 w-80 bg-yellow-50 rounded-lg p-4 h-fit">
-      <div className="flex items-center justify-between mb-4">
-        <h3 className="font-semibold text-gray-700 truncate flex-1 mr-2">{task.title}</h3>
-        <div className="flex items-center gap-2">
-          <span className="bg-yellow-200 text-yellow-800 px-2 py-1 rounded-full text-xs">
-            {task.subtasks.filter(s => s.completed).length}/{task.subtasks.length}
-          </span>
-          <button
-            onClick={() => deleteMainTask(task.id)}
-            className="text-red-500 hover:text-red-700 p-1"
-            title="전체 작업 삭제"
-          >
-            <MoreHorizontal className="w-4 h-4" />
-          </button>
+    <div className="bg-white rounded-lg shadow-sm border border-gray-200 w-80 flex-shrink-0">
+      <div className="p-4 border-b border-gray-100">
+        <div className="flex items-center justify-between">
+          <h3 className="font-semibold text-gray-900 text-sm truncate flex-1 mr-2">
+            {task.title}
+          </h3>
+          <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1">
+              <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+              <span className="text-xs text-gray-600 font-medium">
+                {task.subtasks.filter(s => s.completed).length}/{task.subtasks.length}
+              </span>
+            </div>
+            <button
+              onClick={() => deleteMainTask(task.id)}
+              className="p-1 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
+              title="전체 작업 삭제"
+            >
+              <Trash2 className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+        
+        {/* 진행률 바 */}
+        <div className="mt-3">
+          <div className="w-full bg-gray-100 rounded-full h-1.5">
+            <div 
+              className="bg-blue-500 h-1.5 rounded-full transition-all duration-300"
+              style={{ 
+                width: `${(task.subtasks.filter(s => s.completed).length / task.subtasks.length) * 100}%` 
+              }}
+            ></div>
+          </div>
         </div>
       </div>
       
-      <div className="space-y-2">
+      <div className="p-3 space-y-2 max-h-96 overflow-y-auto">
         {task.subtasks.map(subtask => (
-          <div key={subtask.id} className="bg-white rounded p-3 border border-gray-200 group">
+          <div key={subtask.id} className="group">
             {editingSubtask && editingSubtask.subtaskId === subtask.id ? (
               // 편집 모드
-              <div className="space-y-2">
+              <div className="bg-gray-50 rounded-lg p-3 border border-gray-200">
                 <input
                   value={editingSubtask.title}
                   onChange={(e) => setEditingSubtask(prev => ({ ...prev, title: e.target.value }))}
-                  className="w-full text-sm font-medium border rounded px-2 py-1"
+                  className="w-full text-sm font-medium border-none bg-transparent outline-none mb-2"
                   placeholder="작업 제목"
                 />
-                <input
+                <textarea
                   value={editingSubtask.description}
                   onChange={(e) => setEditingSubtask(prev => ({ ...prev, description: e.target.value }))}
-                  className="w-full text-xs border rounded px-2 py-1"
+                  className="w-full text-xs border-none bg-transparent outline-none resize-none mb-2"
                   placeholder="작업 설명"
+                  rows={2}
                 />
                 <input
                   value={editingSubtask.estimatedTime}
                   onChange={(e) => setEditingSubtask(prev => ({ ...prev, estimatedTime: e.target.value }))}
-                  className="w-full text-xs border rounded px-2 py-1"
+                  className="w-full text-xs border-none bg-transparent outline-none mb-3"
                   placeholder="예상 시간"
                 />
                 <div className="flex gap-2">
                   <button
-                    onClick={saveSubtaskEdit}
-                    className="px-2 py-1 bg-green-600 text-white text-xs rounded hover:bg-green-700"
+                    onClick={addTask}
+                    disabled={!newTask.trim()}
+                    className="w-full px-3 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
+                  >
+                    <Plus className="w-4 h-4" />
+                    추가
+                  </button>
+                </div>
+              </div>
+
+              {/* 할일 목록 */}
+              <div className="flex-1 p-4 overflow-y-auto">
+                {todos.map(task => (
+                  <TodoItem key={task.id} task={task} />
+                ))}
+                {todos.length === 0 && (
+                  <div className="text-center py-12">
+                    <Circle className="w-12 h-12 mx-auto mb-3 text-gray-300" />
+                    <p className="text-sm text-gray-500">아직 할일이 없습니다</p>
+                    <p className="text-xs text-gray-400 mt-1">새로운 작업을 추가해보세요</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Doing 섹션 */}
+          <div className="flex-1">
+            <div className="mb-4">
+              <h3 className="font-semibold text-gray-900 flex items-center gap-2">
+                <div className="w-4 h-4 bg-yellow-500 rounded-full"></div>
+                Doing
+                <span className="bg-yellow-100 text-yellow-800 px-2 py-1 rounded-full text-xs font-medium">
+                  {doingTasks.length}
+                </span>
+              </h3>
+            </div>
+            
+            <div className="flex gap-4 overflow-x-auto pb-4 h-[calc(100%-60px)]">
+              {doingTasks.map(task => (
+                <DoingColumn key={task.id} task={task} />
+              ))}
+              {doingTasks.length === 0 && (
+                <div className="flex-1 bg-white rounded-lg border border-gray-200 shadow-sm p-12 text-center">
+                  <Sparkles className="w-16 h-16 mx-auto mb-4 text-gray-300" />
+                  <h4 className="text-lg font-medium text-gray-900 mb-2">시작할 준비가 되었나요?</h4>
+                  <p className="text-sm text-gray-500">To do에서 작업을 선택하고 '시작' 버튼을 눌러보세요</p>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Done 섹션 */}
+          <div className="w-80 flex-shrink-0">
+            <div className="bg-white rounded-lg shadow-sm border border-gray-200 h-full flex flex-col">
+              <div className="p-4 border-b border-gray-100">
+                <div className="flex items-center justify-between">
+                  <h3 className="font-semibold text-gray-900 flex items-center gap-2">
+                    <div className="w-4 h-4 bg-green-500 rounded-full"></div>
+                    Done
+                  </h3>
+                  <span className="bg-green-100 text-green-800 px-2 py-1 rounded-full text-xs font-medium">
+                    {doneTasks.length}
+                  </span>
+                </div>
+              </div>
+
+              <div className="flex-1 p-4 overflow-y-auto">
+                {doneTasks.map(task => (
+                  <DoneItem key={task.id} task={task} />
+                ))}
+                {doneTasks.length === 0 && (
+                  <div className="text-center py-12">
+                    <CheckCircle className="w-12 h-12 mx-auto mb-3 text-gray-300" />
+                    <p className="text-sm text-gray-500">완료된 작업이 없습니다</p>
+                    <p className="text-xs text-gray-400 mt-1">작업을 완료하면 여기에 표시됩니다</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* 커스텀 확인 모달 */}
+        {confirmModal && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-xl max-w-md w-full shadow-xl">
+              <div className="p-6">
+                <div className="text-center">
+                  <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <X className="w-6 h-6 text-red-600" />
+                  </div>
+                  <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                    작업을 처리할 수 없습니다
+                  </h3>
+                  <div className="mb-4">
+                    <p className="text-sm text-gray-600 mb-1">"{confirmModal.task.title}"</p>
+                    <p className="text-sm text-red-600 mb-2">{confirmModal.message}</p>
+                    <p className="text-xs text-blue-600">💡 {confirmModal.suggestion}</p>
+                  </div>
+                  
+                  <div className="border-t border-gray-100 pt-4">
+                    <p className="text-sm text-gray-700 mb-4">이 작업을 삭제하시겠습니까?</p>
+                    <div className="flex gap-3">
+                      <button
+                        onClick={handleCancelDelete}
+                        className="flex-1 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors font-medium"
+                      >
+                        취소
+                      </button>
+                      <button
+                        onClick={handleConfirmDelete}
+                        className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors font-medium"
+                      >
+                        삭제
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Undo 알림 */}
+        {undoStack.length > 0 && (
+          <div className="fixed bottom-6 right-6 bg-gray-900 text-white p-4 rounded-lg shadow-xl z-40">
+            <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2">
+                <div className="w-2 h-2 bg-blue-400 rounded-full"></div>
+                <span className="text-sm font-medium">삭제된 항목 {undoStack.length}개</span>
+              </div>
+              <button
+                onClick={performUndo}
+                className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 rounded-md text-xs font-medium transition-colors"
+              >
+                실행 취소 (Ctrl+Z)
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}={saveSubtaskEdit}
+                    className="px-2 py-1 bg-blue-600 text-white text-xs rounded hover:bg-blue-700 transition-colors"
                   >
                     저장
                   </button>
                   <button
                     onClick={cancelSubtaskEdit}
-                    className="px-2 py-1 bg-gray-500 text-white text-xs rounded hover:bg-gray-600"
+                    className="px-2 py-1 bg-gray-100 text-gray-600 text-xs rounded hover:bg-gray-200 transition-colors"
                   >
                     취소
                   </button>
@@ -476,50 +650,64 @@ export default function Multitasker() {
               </div>
             ) : (
               // 일반 모드
-              <div className="flex items-start gap-3">
-                <button
-                  onClick={() => toggleSubtask(task.id, subtask.id)}
-                  className={`mt-0.5 ${subtask.completed ? 'text-green-600' : 'text-gray-400'}`}
-                >
-                  {subtask.completed ? (
-                    <CheckCircle className="w-5 h-5" />
-                  ) : (
-                    <Circle className="w-5 h-5" />
-                  )}
-                </button>
-                <div className="flex-1">
-                  <h5 className={`text-sm font-medium ${subtask.completed ? 'line-through text-gray-500' : 'text-gray-800'}`}>
-                    {subtask.title}
-                  </h5>
-                  {subtask.description && (
-                    <p className="text-xs text-gray-600 mt-1">{subtask.description}</p>
-                  )}
-                  {subtask.estimatedTime && (
-                    <div className="flex items-center gap-1 mt-1">
-                      <Clock className="w-3 h-3 text-gray-400" />
-                      <span className="text-xs text-gray-500">{subtask.estimatedTime}</span>
-                    </div>
-                  )}
-                </div>
-                <div className="opacity-0 group-hover:opacity-100 transition-opacity flex gap-1">
+              <div className="bg-white border border-gray-100 rounded-lg p-3 hover:shadow-sm transition-all duration-200">
+                <div className="flex items-start gap-3">
                   <button
-                    onClick={() => startEditSubtask(task.id, subtask)}
-                    className="text-blue-500 hover:text-blue-700 p-1"
-                    title="수정"
+                    onClick={() => toggleSubtask(task.id, subtask.id)}
+                    className={`mt-0.5 transition-colors ${
+                      subtask.completed 
+                        ? 'text-green-600 hover:text-green-700' 
+                        : 'text-gray-300 hover:text-blue-600'
+                    }`}
                   >
-                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                    </svg>
+                    {subtask.completed ? (
+                      <CheckCircle className="w-4 h-4" />
+                    ) : (
+                      <Circle className="w-4 h-4" />
+                    )}
                   </button>
-                  <button
-                    onClick={() => deleteSubtask(task.id, subtask.id)}
-                    className="text-red-500 hover:text-red-700 p-1"
-                    title="삭제"
-                  >
-                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                    </svg>
-                  </button>
+                  
+                  <div className="flex-1 min-w-0">
+                    <h5 className={`text-sm font-medium leading-5 ${
+                      subtask.completed 
+                        ? 'line-through text-gray-500' 
+                        : 'text-gray-900'
+                    }`}>
+                      {subtask.title}
+                    </h5>
+                    
+                    {subtask.description && (
+                      <p className="text-xs text-gray-600 mt-1 leading-4">
+                        {subtask.description}
+                      </p>
+                    )}
+                    
+                    {subtask.estimatedTime && (
+                      <div className="flex items-center gap-1 mt-2">
+                        <Clock className="w-3 h-3 text-gray-400" />
+                        <span className="text-xs text-gray-500 font-medium">
+                          {subtask.estimatedTime}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                  
+                  <div className="opacity-0 group-hover:opacity-100 transition-opacity flex gap-1">
+                    <button
+                      onClick={() => startEditSubtask(task.id, subtask)}
+                      className="p-1 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors"
+                      title="수정"
+                    >
+                      <Edit2 className="w-3 h-3" />
+                    </button>
+                    <button
+                      onClick={() => deleteSubtask(task.id, subtask.id)}
+                      className="p-1 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
+                      title="삭제"
+                    >
+                      <Trash2 className="w-3 h-3" />
+                    </button>
+                  </div>
                 </div>
               </div>
             )}
@@ -530,97 +718,116 @@ export default function Multitasker() {
   );
 
   const DoneItem = ({ task }) => (
-    <div className="bg-white rounded-lg p-4 mb-3 shadow-sm border border-gray-200">
+    <div className="bg-white rounded-lg border border-gray-200 shadow-sm mb-3">
       <div 
-        className="flex items-center justify-between cursor-pointer"
+        className="p-4 cursor-pointer hover:bg-gray-50 transition-colors"
         onClick={() => toggleDoneExpansion(task.id)}
       >
-        <div className="flex items-center gap-2">
-          <Check className="w-5 h-5 text-green-600" />
-          <div>
-            <h4 className="font-medium text-gray-800">{task.title}</h4>
-            <p className="text-xs text-gray-500">완료: {task.completedAt}</p>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3 flex-1">
+            <Check className="w-4 h-4 text-green-600 flex-shrink-0" />
+            <div className="min-w-0 flex-1">
+              <h4 className="font-medium text-gray-900 text-sm truncate">{task.title}</h4>
+              <p className="text-xs text-gray-500 mt-1">완료: {task.completedAt}</p>
+            </div>
           </div>
-        </div>
-        <div className="flex items-center gap-2">
-          <span className="bg-green-100 text-green-800 px-2 py-1 rounded-full text-xs">
-            {task.subtasks.length}개 완료
-          </span>
-          {expandedDone[task.id] ? (
-            <ChevronDown className="w-4 h-4 text-gray-400" />
-          ) : (
-            <ChevronRight className="w-4 h-4 text-gray-400" />
-          )}
+          <div className="flex items-center gap-2">
+            <span className="bg-green-100 text-green-700 px-2 py-1 rounded-full text-xs font-medium">
+              {task.subtasks.length}개 완료
+            </span>
+            {expandedDone[task.id] ? (
+              <ChevronDown className="w-4 h-4 text-gray-400" />
+            ) : (
+              <ChevronRight className="w-4 h-4 text-gray-400" />
+            )}
+          </div>
         </div>
       </div>
       
       {expandedDone[task.id] && (
-        <div className="mt-3 pl-7 space-y-2">
-          {task.subtasks.map(subtask => (
-            <div key={subtask.id} className="flex items-center gap-2 text-sm">
-              <CheckCircle className="w-4 h-4 text-green-600" />
-              <span className="text-gray-600">{subtask.title}</span>
-            </div>
-          ))}
+        <div className="border-t border-gray-100 p-4 bg-gray-50">
+          <div className="space-y-2">
+            {task.subtasks.map(subtask => (
+              <div key={subtask.id} className="flex items-center gap-2">
+                <CheckCircle className="w-3 h-3 text-green-600 flex-shrink-0" />
+                <span className="text-sm text-gray-700">{subtask.title}</span>
+              </div>
+            ))}
+          </div>
         </div>
       )}
     </div>
   );
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-6">
-      <div className="max-w-7xl mx-auto">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50">
+      <div className="max-w-7xl mx-auto p-6">
         {/* 헤더 */}
         <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-800 mb-2">
-            🎯 Multitasker
-          </h1>
-          <p className="text-gray-600">
-            ADHD 친화적 멀티태스킹 - 큰 일을 작은 단위로 나누어 차근차근 진행해보세요
+          <div className="flex items-center gap-3 mb-3">
+            <div className="w-8 h-8 bg-gradient-to-r from-blue-600 to-purple-600 rounded-lg flex items-center justify-center">
+              <Sparkles className="w-5 h-5 text-white" />
+            </div>
+            <h1 className="text-2xl font-bold text-gray-900">
+              Multitasker
+            </h1>
+          </div>
+          <p className="text-gray-600 text-sm">
+            ADHD 친화적 멀티태스킹 도구 - AI가 큰 작업을 작은 단위로 나누어 관리를 도와드립니다
           </p>
         </div>
 
-        <div className="flex gap-6">
+        <div className="flex gap-6 h-[calc(100vh-200px)]">
           {/* To do 섹션 */}
           <div className="w-80 flex-shrink-0">
-            <div className="bg-gray-100 rounded-lg p-4">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="font-semibold text-gray-700">📝 To do</h3>
-                <span className="bg-gray-200 text-gray-600 px-2 py-1 rounded-full text-sm">
-                  {todos.length}
-                </span>
-              </div>
+            <div className="bg-white rounded-lg shadow-sm border border-gray-200 h-full flex flex-col">
+              <div className="p-4 border-b border-gray-100">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="font-semibold text-gray-900 flex items-center gap-2">
+                    <Circle className="w-4 h-4 text-gray-400" />
+                    To do
+                  </h3>
+                  <span className="bg-gray-100 text-gray-600 px-2 py-1 rounded-full text-xs font-medium">
+                    {todos.length}
+                  </span>
+                </div>
 
-              {/* 새 할일 추가 */}
-              <div className="mb-4">
-                <div className="flex gap-2">
-                  <input
-                    type="text"
+                {/* 새 할일 추가 */}
+                <div className="space-y-2">
+                  <textarea
                     value={newTask}
                     onChange={(e) => setNewTask(e.target.value)}
-                    onKeyPress={(e) => e.key === 'Enter' && addTask()}
-                    placeholder="새 할일 입력..."
-                    className="flex-1 px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && !e.shiftKey) {
+                        e.preventDefault();
+                        addTask();
+                      }
+                    }}
+                    placeholder="할일을 입력하세요..."
+                    className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
+                    rows={2}
                   />
                   <button
                     onClick={addTask}
                     disabled={!newTask.trim()}
-                    className="px-3 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
+                    className="w-full px-3 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
                   >
                     <Plus className="w-4 h-4" />
+                    추가
                   </button>
                 </div>
               </div>
 
               {/* 할일 목록 */}
-              <div className="space-y-2 max-h-96 overflow-y-auto">
+              <div className="flex-1 p-4 overflow-y-auto">
                 {todos.map(task => (
                   <TodoItem key={task.id} task={task} />
                 ))}
                 {todos.length === 0 && (
-                  <div className="text-center text-gray-400 py-8">
-                    <Circle className="w-8 h-8 mx-auto mb-2 opacity-30" />
-                    <p className="text-sm">할일을 추가해보세요</p>
+                  <div className="text-center py-12">
+                    <Circle className="w-12 h-12 mx-auto mb-3 text-gray-300" />
+                    <p className="text-sm text-gray-500">아직 할일이 없습니다</p>
+                    <p className="text-xs text-gray-400 mt-1">새로운 작업을 추가해보세요</p>
                   </div>
                 )}
               </div>
@@ -630,24 +837,24 @@ export default function Multitasker() {
           {/* Doing 섹션 */}
           <div className="flex-1">
             <div className="mb-4">
-              <h3 className="font-semibold text-gray-700 flex items-center gap-2">
-                🚀 Doing
-                <span className="bg-yellow-200 text-yellow-800 px-2 py-1 rounded-full text-sm">
+              <h3 className="font-semibold text-gray-900 flex items-center gap-2">
+                <div className="w-4 h-4 bg-yellow-500 rounded-full"></div>
+                Doing
+                <span className="bg-yellow-100 text-yellow-800 px-2 py-1 rounded-full text-xs font-medium">
                   {doingTasks.length}
                 </span>
               </h3>
             </div>
             
-            <div className="flex gap-4 overflow-x-auto pb-4">
+            <div className="flex gap-4 overflow-x-auto pb-4 h-[calc(100%-60px)]">
               {doingTasks.map(task => (
                 <DoingColumn key={task.id} task={task} />
               ))}
               {doingTasks.length === 0 && (
-                <div className="flex-1 bg-yellow-50 rounded-lg p-8 text-center">
-                  <div className="text-gray-400">
-                    <Sparkles className="w-12 h-12 mx-auto mb-2 opacity-30" />
-                    <p className="text-sm">To do에서 할일을 시작해보세요</p>
-                  </div>
+                <div className="flex-1 bg-white rounded-lg border border-gray-200 shadow-sm p-12 text-center">
+                  <Sparkles className="w-16 h-16 mx-auto mb-4 text-gray-300" />
+                  <h4 className="text-lg font-medium text-gray-900 mb-2">시작할 준비가 되었나요?</h4>
+                  <p className="text-sm text-gray-500">To do에서 작업을 선택하고 '시작' 버튼을 눌러보세요</p>
                 </div>
               )}
             </div>
@@ -655,22 +862,28 @@ export default function Multitasker() {
 
           {/* Done 섹션 */}
           <div className="w-80 flex-shrink-0">
-            <div className="bg-green-50 rounded-lg p-4">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="font-semibold text-gray-700">✅ Done</h3>
-                <span className="bg-green-200 text-green-800 px-2 py-1 rounded-full text-sm">
-                  {doneTasks.length}
-                </span>
+            <div className="bg-white rounded-lg shadow-sm border border-gray-200 h-full flex flex-col">
+              <div className="p-4 border-b border-gray-100">
+                <div className="flex items-center justify-between">
+                  <h3 className="font-semibold text-gray-900 flex items-center gap-2">
+                    <div className="w-4 h-4 bg-green-500 rounded-full"></div>
+                    Done
+                  </h3>
+                  <span className="bg-green-100 text-green-800 px-2 py-1 rounded-full text-xs font-medium">
+                    {doneTasks.length}
+                  </span>
+                </div>
               </div>
 
-              <div className="space-y-2 max-h-96 overflow-y-auto">
+              <div className="flex-1 p-4 overflow-y-auto">
                 {doneTasks.map(task => (
                   <DoneItem key={task.id} task={task} />
                 ))}
                 {doneTasks.length === 0 && (
-                  <div className="text-center text-gray-400 py-8">
-                    <CheckCircle className="w-8 h-8 mx-auto mb-2 opacity-30" />
-                    <p className="text-sm">완료된 일이 여기 표시됩니다</p>
+                  <div className="text-center py-12">
+                    <CheckCircle className="w-12 h-12 mx-auto mb-3 text-gray-300" />
+                    <p className="text-sm text-gray-500">완료된 작업이 없습니다</p>
+                    <p className="text-xs text-gray-400 mt-1">작업을 완료하면 여기에 표시됩니다</p>
                   </div>
                 )}
               </div>
@@ -678,64 +891,61 @@ export default function Multitasker() {
           </div>
         </div>
 
-        {/* 도움말 */}
-        <div className="mt-8 bg-blue-50 border border-blue-200 rounded-lg p-4">
-          <h4 className="font-medium text-blue-800 mb-2">💡 사용 팁</h4>
-          <ul className="text-sm text-blue-700 space-y-1">
-            <li>• To do에 큰 할일을 입력하고 '시작' 버튼을 클릭하세요</li>
-            <li>• AI가 자동으로 작은 단위로 나누어 Doing 영역에 표시합니다</li>
-            <li>• 체크박스를 클릭해서 작은 일들을 하나씩 완료해보세요</li>
-            <li>• 모든 서브태스크가 완료되면 자동으로 Done으로 이동합니다</li>
-            <li>• Done에서 완료된 작업을 클릭하면 세부사항을 볼 수 있습니다</li>
-            <li>• <strong>Ctrl+Z (Mac: Cmd+Z)</strong>로 삭제한 작업을 되돌릴 수 있습니다</li>
-          </ul>
-        </div>
-
-        {/* Undo 알림 */}
-        {undoStack.length > 0 && (
-          <div className="fixed bottom-4 right-4 bg-gray-800 text-white px-4 py-2 rounded shadow-lg">
-            <div className="flex items-center gap-2 text-sm">
-              <span>삭제된 항목: {undoStack.length}개</span>
-              <button
-                onClick={performUndo}
-                className="bg-blue-600 hover:bg-blue-700 px-2 py-1 rounded text-xs"
-              >
-                Ctrl+Z로 되돌리기
-              </button>
+        {/* 커스텀 확인 모달 */}
+        {confirmModal && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-xl max-w-md w-full shadow-xl">
+              <div className="p-6">
+                <div className="text-center">
+                  <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <X className="w-6 h-6 text-red-600" />
+                  </div>
+                  <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                    작업을 처리할 수 없습니다
+                  </h3>
+                  <div className="mb-4">
+                    <p className="text-sm text-gray-600 mb-1">"{confirmModal.task.title}"</p>
+                    <p className="text-sm text-red-600 mb-2">{confirmModal.message}</p>
+                    <p className="text-xs text-blue-600">💡 {confirmModal.suggestion}</p>
+                  </div>
+                  
+                  <div className="border-t border-gray-100 pt-4">
+                    <p className="text-sm text-gray-700 mb-4">이 작업을 삭제하시겠습니까?</p>
+                    <div className="flex gap-3">
+                      <button
+                        onClick={handleCancelDelete}
+                        className="flex-1 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors font-medium"
+                      >
+                        취소
+                      </button>
+                      <button
+                        onClick={handleConfirmDelete}
+                        className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors font-medium"
+                      >
+                        삭제
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         )}
 
-        {/* 커스텀 확인 모달 */}
-        {confirmModal && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white rounded-lg p-6 max-w-md mx-4 shadow-xl">
-              <div className="text-center">
-                <div className="text-4xl mb-4">❌</div>
-                <h3 className="text-lg font-semibold text-gray-800 mb-2">
-                  "{confirmModal.task.title}"
-                </h3>
-                <p className="text-gray-600 mb-2">{confirmModal.message}</p>
-                <p className="text-blue-600 text-sm mb-6">💡 {confirmModal.suggestion}</p>
-                
-                <div className="border-t pt-4">
-                  <p className="text-gray-700 mb-4">이 작업을 삭제하시겠습니까?</p>
-                  <div className="flex gap-3 justify-center">
-                    <button
-                      onClick={handleCancelDelete}
-                      className="px-4 py-2 bg-gray-500 text-white rounded hover:bg-gray-600"
-                    >
-                      취소
-                    </button>
-                    <button
-                      onClick={handleConfirmDelete}
-                      className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700"
-                    >
-                      삭제
-                    </button>
-                  </div>
-                </div>
+        {/* Undo 알림 */}
+        {undoStack.length > 0 && (
+          <div className="fixed bottom-6 right-6 bg-gray-900 text-white p-4 rounded-lg shadow-xl z-40">
+            <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2">
+                <div className="w-2 h-2 bg-blue-400 rounded-full"></div>
+                <span className="text-sm font-medium">삭제된 항목 {undoStack.length}개</span>
               </div>
+              <button
+                onClick={performUndo}
+                className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 rounded-md text-xs font-medium transition-colors"
+              >
+                실행 취소 (Ctrl+Z)
+              </button>
             </div>
           </div>
         )}
