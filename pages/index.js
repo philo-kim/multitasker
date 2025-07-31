@@ -37,7 +37,7 @@ export default function Multitasker() {
           : task
       ));
     }
-  };
+  };ㄴ
 
   useEffect(() => {
     const handleKeyDown = (e) => {
@@ -567,7 +567,7 @@ export default function Multitasker() {
             </h1>
           </div>
           <p className="text-gray-600 text-sm">
-            ADHD 친화적 멀티태스킹 도구 - AI가 큰 작업을 작은 단위로 나누어 관리를 도와드립니다
+            ADHD 친화적 멀티태스킹 도구 - 큰 작업을 작은 단위로 나누어 관리를 도와드립니다
           </p>
         </div>
 
