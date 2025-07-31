@@ -643,7 +643,7 @@ export default function Multitasker() {
   };
 
   const DoingColumn = ({ task }) => (
-    <div className="bg-white rounded-lg shadow-sm border border-gray-200 w-80 flex-shrink-0">
+    <div className="bg-white rounded-lg shadow-sm border border-gray-200 w-full lg:w-80 flex-shrink-0">
       <div className="p-4 border-b border-gray-100 min-h-[80px]">
         <div className="flex items-center justify-between">
           <h3 className="font-semibold text-gray-900 text-sm flex-1 mr-2 leading-tight break-words">
@@ -996,8 +996,8 @@ export default function Multitasker() {
         </div>
       </div>
 
-      <div className="flex gap-6 h-[calc(100vh-200px)] px-6">
-        <div className="w-80 flex-shrink-0">
+      <div className="flex flex-col lg:flex-row gap-6 h-auto lg:h-[calc(100vh-200px)] px-6">
+        <div className="w-full lg:w-80 flex-shrink-0">
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 h-full flex flex-col">
             <div className="p-4 border-b border-gray-100">
               <div className="flex items-center justify-between mb-4">
@@ -1061,7 +1061,7 @@ export default function Multitasker() {
             </h3>
           </div>
 
-          <div className="flex gap-4 overflow-x-auto pb-4 h-[calc(100%-60px)] justify-start">
+          <div className="flex flex-col lg:flex-row gap-4 overflow-x-auto lg:overflow-x-auto pb-4 h-auto lg:h-[calc(100%-60px)] justify-start">
             {doingTasks.map(task => (
               <DoingColumn key={task.id} task={task} />
             ))}
@@ -1075,7 +1075,7 @@ export default function Multitasker() {
           </div>
         </div>
 
-        <div className="w-80 flex-shrink-0">
+        <div className="w-full lg:w-80 flex-shrink-0">
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 h-full flex flex-col">
             <div className="p-4 border-b border-gray-100">
               <div className="flex items-center justify-between">
