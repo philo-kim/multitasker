@@ -13,7 +13,6 @@ export default function Multitasker() {
   const [undoStack, setUndoStack] = useState([]);
   const [expandedDone, setExpandedDone] = useState({});
 
-  // Undo 기능을 위한 상태 저장
   const saveStateForUndo = (action, data) => {
     const undoItem = {
       id: Date.now(),
@@ -21,16 +20,13 @@ export default function Multitasker() {
       data,
       timestamp: new Date().toLocaleString()
     };
-    setUndoStack(prev => [undoItem, ...prev.slice(0, 99)]); // 최대 100개까지 저장
+    setUndoStack(prev => [undoItem, ...prev.slice(0, 99)]);
   };
 
-  // Undo 실행
   const performUndo = () => {
     if (undoStack.length === 0) return;
-
     const lastAction = undoStack[0];
     setUndoStack(prev => prev.slice(1));
-
     switch (lastAction.action) {
       case 'DELETE_MAIN_TASK':
         setDoingTasks(prev => [...prev, lastAction.data.task]);
@@ -48,7 +44,6 @@ export default function Multitasker() {
     }
   };
 
-  // 키보드 이벤트 리스너
   useEffect(() => {
     const handleKeyDown = (e) => {
       if ((e.ctrlKey || e.metaKey) && e.key === 'z') {
@@ -56,17 +51,12 @@ export default function Multitasker() {
         performUndo();
       }
     };
-
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [undoStack]);
 
-  // 실제 Claude API를 사용한 태스크 분할 함수
   const breakDownTask = async (task) => {
-    // 이미 처리 중인 태스크라면 무시
     if (isBreakingDown.includes(task.id)) return;
-    
-    // 처리 중인 태스크 목록에 추가
     setIsBreakingDown(prev => [...prev, task.id]);
     
     try {
@@ -80,27 +70,16 @@ export default function Multitasker() {
 
       const data = await response.json();
       
-      // 디버깅용 로그
-      console.log('Response status:', response.status);
-      console.log('Response data:', data);
-
-      // 유효하지 않은 작업인 경우 (상태 코드 400 또는 error 플래그)
       if (response.status === 400 || data.error) {
-        console.log('Invalid task detected');
-        
-        // 커스텀 모달로 확인
         setConfirmModal({
           task: task,
           message: data.message || '분할할 수 없는 작업입니다',
           suggestion: data.suggestion || '더 구체적이고 실행 가능한 작업을 입력해주세요'
         });
-        
-        // 처리 중 상태 해제
         setIsBreakingDown(prev => prev.filter(id => id !== task.id));
         return;
       }
 
-      // 정상적인 경우: subtasks 처리
       if (!data.subtasks || !Array.isArray(data.subtasks)) {
         throw new Error('Invalid subtasks format');
       }
@@ -121,38 +100,22 @@ export default function Multitasker() {
       }]);
 
     } catch (error) {
-      console.error('분할 실패:', error);
-      
-      // 에러 시 시뮬레이션 분할 제공
       const simulatedBreakdowns = {
         '방 청소하기': [
           { title: '청소 용품 준비하기', description: '청소기, 걸레, 세제 등 필요한 도구 모으기', estimatedTime: '5분' },
           { title: '바닥 정리하기', description: '바닥에 있는 물건들 제자리에 정리', estimatedTime: '15분' },
-          { title: '침대 정리하기', description: '이불 개고 베개 정리하기', estimatedTime: '5분' },
-          { title: '책상 정리하기', description: '책상 위 물건 정리하고 먼지 닦기', estimatedTime: '10분' },
-          { title: '바닥 청소하기', description: '청소기로 바닥 청소하기', estimatedTime: '10분' }
+          { title: '침대 정리하기', description: '이불 개고 베개 정리하기', estimatedTime: '5분' }
         ],
         '보고서 작성하기': [
           { title: '자료 수집하기', description: '필요한 데이터와 참고 자료 모으기', estimatedTime: '20분' },
           { title: '개요 작성하기', description: '보고서 구조와 목차 정리', estimatedTime: '15분' },
-          { title: '서론 작성하기', description: '배경과 목적 설명하기', estimatedTime: '20분' },
-          { title: '본론 작성하기', description: '핵심 내용과 분석 결과 작성', estimatedTime: '30분' },
-          { title: '결론 작성하기', description: '요약과 제언 작성', estimatedTime: '15분' },
-          { title: '검토 및 수정하기', description: '오타 확인하고 내용 다듬기', estimatedTime: '10분' }
-        ],
-        '운동하기': [
-          { title: '운동복 갈아입기', description: '편한 운동복으로 갈아입기', estimatedTime: '3분' },
-          { title: '워밍업하기', description: '5분간 가벼운 스트레칭', estimatedTime: '5분' },
-          { title: '유산소 운동하기', description: '달리기 또는 빠른 걷기', estimatedTime: '20분' },
-          { title: '근력 운동하기', description: '팔굽혀펴기, 스쿼트 등', estimatedTime: '15분' },
-          { title: '마무리 스트레칭', description: '근육 이완을 위한 스트레칭', estimatedTime: '5분' }
+          { title: '서론 작성하기', description: '배경과 목적 설명하기', estimatedTime: '20분' }
         ]
       };
 
       const fallbackSubtasks = simulatedBreakdowns[task.title] || [
         { title: `${task.title} - 1단계`, description: "첫 번째 작업 단계", estimatedTime: "15분" },
-        { title: `${task.title} - 2단계`, description: "두 번째 작업 단계", estimatedTime: "20분" },
-        { title: `${task.title} - 3단계`, description: "마지막 작업 단계", estimatedTime: "10분" }
+        { title: `${task.title} - 2단계`, description: "두 번째 작업 단계", estimatedTime: "20분" }
       ];
 
       const subtasks = fallbackSubtasks.map((subtask, index) => ({
@@ -171,7 +134,6 @@ export default function Multitasker() {
       }]);
     }
     
-    // 처리 완료 후 목록에서 제거
     setIsBreakingDown(prev => prev.filter(id => id !== task.id));
   };
 
@@ -220,7 +182,6 @@ export default function Multitasker() {
     }));
   };
 
-  // 대주제(전체 태스크) 삭제
   const deleteMainTask = (taskId) => {
     const task = doingTasks.find(t => t.id === taskId);
     if (task) {
@@ -229,7 +190,6 @@ export default function Multitasker() {
     }
   };
 
-  // 소주제(서브태스크) 삭제
   const deleteSubtask = (taskId, subtaskId) => {
     const task = doingTasks.find(t => t.id === taskId);
     const subtask = task?.subtasks.find(s => s.id === subtaskId);
@@ -241,7 +201,6 @@ export default function Multitasker() {
         if (t.id === taskId) {
           const updatedSubtasks = t.subtasks.filter(s => s.id !== subtaskId);
           
-          // 서브태스크가 모두 삭제되면 메인 태스크도 삭제
           if (updatedSubtasks.length === 0) {
             return null;
           }
@@ -253,7 +212,6 @@ export default function Multitasker() {
     }
   };
 
-  // 소주제 수정 시작
   const startEditSubtask = (taskId, subtask) => {
     setEditingSubtask({
       taskId,
@@ -264,7 +222,6 @@ export default function Multitasker() {
     });
   };
 
-  // 소주제 수정 저장
   const saveSubtaskEdit = () => {
     if (!editingSubtask.title.trim()) return;
 
@@ -288,12 +245,10 @@ export default function Multitasker() {
     setEditingSubtask(null);
   };
 
-  // 소주제 수정 취소
   const cancelSubtaskEdit = () => {
     setEditingSubtask(null);
   };
 
-  // 커스텀 확인 모달 함수들
   const handleConfirmDelete = () => {
     if (confirmModal) {
       setTodos(prev => prev.filter(t => t.id !== confirmModal.task.id));
@@ -305,7 +260,6 @@ export default function Multitasker() {
     setConfirmModal(null);
   };
 
-  // To do 작업 삭제
   const deleteTodoTask = (taskId) => {
     const task = todos.find(t => t.id === taskId);
     if (task) {
@@ -314,7 +268,6 @@ export default function Multitasker() {
     }
   };
 
-  // To do 작업 수정 시작
   const startEditTodo = (task) => {
     setEditingTodo({
       id: task.id,
@@ -322,7 +275,6 @@ export default function Multitasker() {
     });
   };
 
-  // To do 작업 수정 저장
   const saveTodoEdit = () => {
     if (!editingTodo.title.trim()) return;
 
@@ -335,15 +287,11 @@ export default function Multitasker() {
     setEditingTodo(null);
   };
 
-  // To do 작업 수정 취소
   const cancelTodoEdit = () => {
     setEditingTodo(null);
-  };
-
-  const TodoItem = ({ task }) => (
+  };const TodoItem = ({ task }) => (
     <div className="bg-white rounded-lg border border-gray-200 shadow-sm hover:shadow-md transition-all duration-200 group mb-3">
       {editingTodo && editingTodo.id === task.id ? (
-        // 편집 모드
         <div className="p-4">
           <textarea
             value={editingTodo.title}
@@ -378,7 +326,6 @@ export default function Multitasker() {
           </div>
         </div>
       ) : (
-        // 일반 모드
         <div className="p-4">
           <div className="flex items-start justify-between mb-3">
             <h4 className="text-sm font-medium text-gray-900 leading-5 flex-1 pr-2">
@@ -451,7 +398,6 @@ export default function Multitasker() {
           </div>
         </div>
         
-        {/* 진행률 바 */}
         <div className="mt-3">
           <div className="w-full bg-gray-100 rounded-full h-1.5">
             <div 
@@ -468,7 +414,6 @@ export default function Multitasker() {
         {task.subtasks.map(subtask => (
           <div key={subtask.id} className="group">
             {editingSubtask && editingSubtask.subtaskId === subtask.id ? (
-              // 편집 모드
               <div className="bg-gray-50 rounded-lg p-3 border border-gray-200">
                 <input
                   value={editingSubtask.title}
@@ -491,151 +436,7 @@ export default function Multitasker() {
                 />
                 <div className="flex gap-2">
                   <button
-                    onClick={addTask}
-                    disabled={!newTask.trim()}
-                    className="w-full px-3 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
-                  >
-                    <Plus className="w-4 h-4" />
-                    추가
-                  </button>
-                </div>
-              </div>
-
-              {/* 할일 목록 */}
-              <div className="flex-1 p-4 overflow-y-auto">
-                {todos.map(task => (
-                  <TodoItem key={task.id} task={task} />
-                ))}
-                {todos.length === 0 && (
-                  <div className="text-center py-12">
-                    <Circle className="w-12 h-12 mx-auto mb-3 text-gray-300" />
-                    <p className="text-sm text-gray-500">아직 할일이 없습니다</p>
-                    <p className="text-xs text-gray-400 mt-1">새로운 작업을 추가해보세요</p>
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-
-          {/* Doing 섹션 */}
-          <div className="flex-1">
-            <div className="mb-4">
-              <h3 className="font-semibold text-gray-900 flex items-center gap-2">
-                <div className="w-4 h-4 bg-yellow-500 rounded-full"></div>
-                Doing
-                <span className="bg-yellow-100 text-yellow-800 px-2 py-1 rounded-full text-xs font-medium">
-                  {doingTasks.length}
-                </span>
-              </h3>
-            </div>
-            
-            <div className="flex gap-4 overflow-x-auto pb-4 h-[calc(100%-60px)]">
-              {doingTasks.map(task => (
-                <DoingColumn key={task.id} task={task} />
-              ))}
-              {doingTasks.length === 0 && (
-                <div className="flex-1 bg-white rounded-lg border border-gray-200 shadow-sm p-12 text-center">
-                  <Sparkles className="w-16 h-16 mx-auto mb-4 text-gray-300" />
-                  <h4 className="text-lg font-medium text-gray-900 mb-2">시작할 준비가 되었나요?</h4>
-                  <p className="text-sm text-gray-500">To do에서 작업을 선택하고 '시작' 버튼을 눌러보세요</p>
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Done 섹션 */}
-          <div className="w-80 flex-shrink-0">
-            <div className="bg-white rounded-lg shadow-sm border border-gray-200 h-full flex flex-col">
-              <div className="p-4 border-b border-gray-100">
-                <div className="flex items-center justify-between">
-                  <h3 className="font-semibold text-gray-900 flex items-center gap-2">
-                    <div className="w-4 h-4 bg-green-500 rounded-full"></div>
-                    Done
-                  </h3>
-                  <span className="bg-green-100 text-green-800 px-2 py-1 rounded-full text-xs font-medium">
-                    {doneTasks.length}
-                  </span>
-                </div>
-              </div>
-
-              <div className="flex-1 p-4 overflow-y-auto">
-                {doneTasks.map(task => (
-                  <DoneItem key={task.id} task={task} />
-                ))}
-                {doneTasks.length === 0 && (
-                  <div className="text-center py-12">
-                    <CheckCircle className="w-12 h-12 mx-auto mb-3 text-gray-300" />
-                    <p className="text-sm text-gray-500">완료된 작업이 없습니다</p>
-                    <p className="text-xs text-gray-400 mt-1">작업을 완료하면 여기에 표시됩니다</p>
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* 커스텀 확인 모달 */}
-        {confirmModal && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-            <div className="bg-white rounded-xl max-w-md w-full shadow-xl">
-              <div className="p-6">
-                <div className="text-center">
-                  <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                    <X className="w-6 h-6 text-red-600" />
-                  </div>
-                  <h3 className="text-lg font-semibold text-gray-900 mb-2">
-                    작업을 처리할 수 없습니다
-                  </h3>
-                  <div className="mb-4">
-                    <p className="text-sm text-gray-600 mb-1">"{confirmModal.task.title}"</p>
-                    <p className="text-sm text-red-600 mb-2">{confirmModal.message}</p>
-                    <p className="text-xs text-blue-600">💡 {confirmModal.suggestion}</p>
-                  </div>
-                  
-                  <div className="border-t border-gray-100 pt-4">
-                    <p className="text-sm text-gray-700 mb-4">이 작업을 삭제하시겠습니까?</p>
-                    <div className="flex gap-3">
-                      <button
-                        onClick={handleCancelDelete}
-                        className="flex-1 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors font-medium"
-                      >
-                        취소
-                      </button>
-                      <button
-                        onClick={handleConfirmDelete}
-                        className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors font-medium"
-                      >
-                        삭제
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Undo 알림 */}
-        {undoStack.length > 0 && (
-          <div className="fixed bottom-6 right-6 bg-gray-900 text-white p-4 rounded-lg shadow-xl z-40">
-            <div className="flex items-center gap-3">
-              <div className="flex items-center gap-2">
-                <div className="w-2 h-2 bg-blue-400 rounded-full"></div>
-                <span className="text-sm font-medium">삭제된 항목 {undoStack.length}개</span>
-              </div>
-              <button
-                onClick={performUndo}
-                className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 rounded-md text-xs font-medium transition-colors"
-              >
-                실행 취소 (Ctrl+Z)
-              </button>
-            </div>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}={saveSubtaskEdit}
+                    onClick={saveSubtaskEdit}
                     className="px-2 py-1 bg-blue-600 text-white text-xs rounded hover:bg-blue-700 transition-colors"
                   >
                     저장
@@ -649,7 +450,6 @@ export default function Multitasker() {
                 </div>
               </div>
             ) : (
-              // 일반 모드
               <div className="bg-white border border-gray-100 rounded-lg p-3 hover:shadow-sm transition-all duration-200">
                 <div className="flex items-start gap-3">
                   <button
@@ -757,12 +557,9 @@ export default function Multitasker() {
         </div>
       )}
     </div>
-  );
-
-  return (
+  );return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50">
       <div className="max-w-7xl mx-auto p-6">
-        {/* 헤더 */}
         <div className="mb-8">
           <div className="flex items-center gap-3 mb-3">
             <div className="w-8 h-8 bg-gradient-to-r from-blue-600 to-purple-600 rounded-lg flex items-center justify-center">
@@ -778,7 +575,6 @@ export default function Multitasker() {
         </div>
 
         <div className="flex gap-6 h-[calc(100vh-200px)]">
-          {/* To do 섹션 */}
           <div className="w-80 flex-shrink-0">
             <div className="bg-white rounded-lg shadow-sm border border-gray-200 h-full flex flex-col">
               <div className="p-4 border-b border-gray-100">
@@ -792,7 +588,6 @@ export default function Multitasker() {
                   </span>
                 </div>
 
-                {/* 새 할일 추가 */}
                 <div className="space-y-2">
                   <textarea
                     value={newTask}
@@ -818,7 +613,6 @@ export default function Multitasker() {
                 </div>
               </div>
 
-              {/* 할일 목록 */}
               <div className="flex-1 p-4 overflow-y-auto">
                 {todos.map(task => (
                   <TodoItem key={task.id} task={task} />
@@ -834,7 +628,6 @@ export default function Multitasker() {
             </div>
           </div>
 
-          {/* Doing 섹션 */}
           <div className="flex-1">
             <div className="mb-4">
               <h3 className="font-semibold text-gray-900 flex items-center gap-2">
@@ -860,7 +653,6 @@ export default function Multitasker() {
             </div>
           </div>
 
-          {/* Done 섹션 */}
           <div className="w-80 flex-shrink-0">
             <div className="bg-white rounded-lg shadow-sm border border-gray-200 h-full flex flex-col">
               <div className="p-4 border-b border-gray-100">
@@ -891,7 +683,6 @@ export default function Multitasker() {
           </div>
         </div>
 
-        {/* 커스텀 확인 모달 */}
         {confirmModal && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
             <div className="bg-white rounded-xl max-w-md w-full shadow-xl">
@@ -932,7 +723,6 @@ export default function Multitasker() {
           </div>
         )}
 
-        {/* Undo 알림 */}
         {undoStack.length > 0 && (
           <div className="fixed bottom-6 right-6 bg-gray-900 text-white p-4 rounded-lg shadow-xl z-40">
             <div className="flex items-center gap-3">
