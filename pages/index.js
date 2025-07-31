@@ -12,6 +12,8 @@ export default function Multitasker() {
   const [editingTodo, setEditingTodo] = useState(null);
   const [undoStack, setUndoStack] = useState([]);
   const [expandedDone, setExpandedDone] = useState({});
+  const [addTaskTimeout, setAddTaskTimeout] = useState(null);
+
 
   // 👇 여기 바로 아래에 추가
   const STORAGE_KEYS = {
@@ -80,6 +82,15 @@ export default function Multitasker() {
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [undoStack]);
+
+  // 컴포넌트 언마운트 시 타이머 정리
+  useEffect(() => {
+    return () => {
+      if (addTaskTimeout) {
+        clearTimeout(addTaskTimeout);
+      }
+    };
+  }, [addTaskTimeout]);
 
   // 👇 여기 바로 아래에 추가
   useEffect(() => {
@@ -174,22 +185,33 @@ export default function Multitasker() {
 
   const addTask = () => {
     if (!newTask.trim()) return;
-    
-    const trimmedTask = newTask.trim();
-    
-    if (todos.some(task => task.title === trimmedTask)) {
-      setNewTask('');
-      return;
+
+    // 기존 타이머 취소
+    if (addTaskTimeout) {
+      clearTimeout(addTaskTimeout);
     }
-    
-    const task = {
-      id: `task-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-      title: trimmedTask,
-      createdAt: new Date().toLocaleString()
-    };
-    
-    setTodos(prev => [...prev, task]);
-    setNewTask('');
+
+    // 짧은 지연 후 실행 (한글 입력 완료 대기)
+    const timeout = setTimeout(() => {
+      const trimmedTask = newTask.trim();
+
+      if (trimmedTask.length < 2) return; // 너무 짧은 입력 무시
+      if (todos.some(task => task.title === trimmedTask)) {
+        setNewTask('');
+        return;
+      }
+
+      const task = {
+        id: `task-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+        title: trimmedTask,
+        createdAt: new Date().toLocaleString()
+      };
+
+      setTodos(prev => [...prev, task]);
+      setNewTask('');
+    }, 100); // 100ms 지연
+
+    setAddTaskTimeout(timeout);
   };
 
   const toggleSubtask = (taskId, subtaskId) => {
