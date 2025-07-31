@@ -37,7 +37,7 @@ export default function Multitasker() {
           : task
       ));
     }
-  };ㄴ
+  };
 
   useEffect(() => {
     const handleKeyDown = (e) => {
