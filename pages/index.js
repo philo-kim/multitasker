@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { debounce } from 'lodash'; // npm install lodash 필요
 import { Plus, MoreHorizontal, Clock, CheckCircle, Circle, Sparkles, ChevronDown, ChevronRight, Play, Check, X, Edit2, Trash2 } from 'lucide-react';
 
 export default function Multitasker() {
@@ -13,20 +14,55 @@ export default function Multitasker() {
   const [undoStack, setUndoStack] = useState([]);
   const [expandedDone, setExpandedDone] = useState({});
   const [addTaskTimeout, setAddTaskTimeout] = useState(null);
+  const [userLevel, setUserLevel] = useState(1);
+  const [userXP, setUserXP] = useState(0);
+  const [showLevelUp, setShowLevelUp] = useState(false);
 
 
-  // 👇 여기 바로 아래에 추가
   const STORAGE_KEYS = {
     TODOS: 'multitasker_todos',
     DOING: 'multitasker_doing',
     DONE: 'multitasker_done'
+  USER_LEVEL: 'multitasker_level',
+    USER_XP: 'multitasker_xp'
   };
+
+  const calculateXP = (action, taskComplexity = 1) => {
+    const baseXP = {
+      'TASK_COMPLETE': 50,
+      'SUBTASK_COMPLETE': 10,
+      'TASK_START': 5,
+      'DAILY_STREAK': 25
+    };
+    return baseXP[action] * taskComplexity;
+  };
+
+  const getXPForNextLevel = (level) => level * 100;
+
+  const addXP = useCallback((amount, source) => {
+    setUserXP(prev => {
+      const newXP = prev + amount;
+      const xpForNext = getXPForNextLevel(userLevel);
+
+      if (newXP >= xpForNext) {
+        setUserLevel(prevLevel => prevLevel + 1);
+        setShowLevelUp(true);
+        setTimeout(() => setShowLevelUp(false), 3000);
+        return newXP - xpForNext; // 남은 XP
+      }
+
+      return newXP;
+    });
+  }, [userLevel]);
+
 
   const saveToLocal = () => {
     try {
       localStorage.setItem(STORAGE_KEYS.TODOS, JSON.stringify(todos));
       localStorage.setItem(STORAGE_KEYS.DOING, JSON.stringify(doingTasks));
       localStorage.setItem(STORAGE_KEYS.DONE, JSON.stringify(doneTasks));
+      localStorage.setItem(STORAGE_KEYS.USER_LEVEL, userLevel.toString());
+      localStorage.setItem(STORAGE_KEYS.USER_XP, userXP.toString());
     } catch (error) {
       console.error('저장 실패:', error);
     }
@@ -37,10 +73,14 @@ export default function Multitasker() {
       const savedTodos = localStorage.getItem(STORAGE_KEYS.TODOS);
       const savedDoing = localStorage.getItem(STORAGE_KEYS.DOING);
       const savedDone = localStorage.getItem(STORAGE_KEYS.DONE);
+      const savedLevel = localStorage.getItem(STORAGE_KEYS.USER_LEVEL);
+      const savedXP = localStorage.getItem(STORAGE_KEYS.USER_XP);
 
       if (savedTodos) setTodos(JSON.parse(savedTodos));
       if (savedDoing) setDoingTasks(JSON.parse(savedDoing));
       if (savedDone) setDoneTasks(JSON.parse(savedDone));
+      if (savedLevel) setUserLevel(parseInt(savedLevel));
+      if (savedXP) setUserXP(parseInt(savedXP));
     } catch (error) {
       console.error('불러오기 실패:', error);
     }
@@ -101,18 +141,23 @@ export default function Multitasker() {
     saveToLocal();
   }, [todos, doingTasks, doneTasks]);
 
-  const breakDownTask = async (task) => {
+  const breakDownTask = async (task, retryCount = 0) => {
     if (isBreakingDown.includes(task.id)) return;
     setIsBreakingDown(prev => [...prev, task.id]);
 
     try {
       const response = await fetch('/api/break-down-task', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ task: task.title }),
       });
+
+      // 재시도 로직 추가
+      if (!response.ok && retryCount < 2) {
+        setIsBreakingDown(prev => prev.filter(id => id !== task.id));
+        await new Promise(resolve => setTimeout(resolve, 1000 * (retryCount + 1)));
+        return breakDownTask(task, retryCount + 1);
+      }
 
       const data = await response.json();
 
@@ -146,18 +191,11 @@ export default function Multitasker() {
       }]);
 
     } catch (error) {
-      const simulatedBreakdowns = {
-        '방 청소하기': [
-          { title: '청소 용품 준비하기', description: '청소기, 걸레, 세제 등 필요한 도구 모으기', estimatedTime: '5분' },
-          { title: '바닥 정리하기', description: '바닥에 있는 물건들 제자리에 정리', estimatedTime: '15분' },
-          { title: '침대 정리하기', description: '이불 개고 베개 정리하기', estimatedTime: '5분' }
-        ],
-        '보고서 작성하기': [
-          { title: '자료 수집하기', description: '필요한 데이터와 참고 자료 모으기', estimatedTime: '20분' },
-          { title: '개요 작성하기', description: '보고서 구조와 목차 정리', estimatedTime: '15분' },
-          { title: '서론 작성하기', description: '배경과 목적 설명하기', estimatedTime: '20분' }
-        ]
-      };
+      if (retryCount < 2) {
+        setIsBreakingDown(prev => prev.filter(id => id !== task.id));
+        await new Promise(resolve => setTimeout(resolve, 1000 * (retryCount + 1)));
+        return breakDownTask(task, retryCount + 1);
+      }
 
       const fallbackSubtasks = simulatedBreakdowns[task.title] || [
         { title: `${task.title} - 1단계`, description: "첫 번째 작업 단계", estimatedTime: "15분" },
@@ -183,19 +221,12 @@ export default function Multitasker() {
     setIsBreakingDown(prev => prev.filter(id => id !== task.id));
   };
 
-  const addTask = () => {
-    if (!newTask.trim()) return;
+  // 기존 addTask 함수를 이것으로 교체
+  const debouncedAddTask = useCallback(
+    debounce(() => {
+      if (!newTask.trim() || newTask.trim().length < 2) return;
 
-    // 기존 타이머 취소
-    if (addTaskTimeout) {
-      clearTimeout(addTaskTimeout);
-    }
-
-    // 짧은 지연 후 실행 (한글 입력 완료 대기)
-    const timeout = setTimeout(() => {
       const trimmedTask = newTask.trim();
-
-      if (trimmedTask.length < 2) return; // 너무 짧은 입력 무시
       if (todos.some(task => task.title === trimmedTask)) {
         setNewTask('');
         return;
@@ -209,11 +240,15 @@ export default function Multitasker() {
 
       setTodos(prev => [...prev, task]);
       setNewTask('');
-    }, 100); // 100ms 지연
+    }, 300),
+    [newTask, todos]
+  );
 
-    setAddTaskTimeout(timeout);
+  const addTask = () => {
+    debouncedAddTask();
   };
 
+  // 기존 toggleSubtask 함수에서 서브태스크 완료 시 XP 추가
   const toggleSubtask = (taskId, subtaskId) => {
     setDoingTasks(prev => prev.map(task => {
       if (task.id === taskId) {
@@ -223,9 +258,18 @@ export default function Multitasker() {
             : subtask
         );
 
+        // XP 추가 로직
+        const subtask = task.subtasks.find(s => s.id === subtaskId);
+        if (subtask && !subtask.completed) {
+          addXP(calculateXP('SUBTASK_COMPLETE'), `서브태스크 완료: ${subtask.title}`);
+        }
+
         const allCompleted = updatedSubtasks.every(subtask => subtask.completed);
 
         if (allCompleted) {
+          // 전체 태스크 완료 시 보너스 XP
+          addXP(calculateXP('TASK_COMPLETE', task.subtasks.length), `태스크 완료: ${task.title}`);
+
           const completedTask = {
             ...task,
             subtasks: updatedSubtasks,
@@ -700,237 +744,278 @@ export default function Multitasker() {
           </p>
         </div>
 
-        <div className="flex gap-6 h-[calc(100vh-200px)]">
-          <div className="w-80 flex-shrink-0">
-            <div className="bg-white rounded-lg shadow-sm border border-gray-200 h-full flex flex-col">
-              <div className="p-4 border-b border-gray-100">
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="font-semibold text-gray-900 flex items-center gap-2">
-                    <Circle className="w-4 h-4 text-gray-400" />
-                    To do
-                  </h3>
-                  <span className="bg-gray-100 text-gray-600 px-2 py-1 rounded-full text-xs font-medium">
-                    {todos.length}
-                  </span>
-                </div>
-
-                <div className="space-y-2">
-                  <textarea
-                    value={newTask}
-                    onChange={(e) => setNewTask(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' && !e.shiftKey) {
-                        e.preventDefault();
-                        addTask();
-                      }
-                    }}
-                    placeholder="할일을 입력하세요..."
-                    className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
-                    rows={2}
-                  />
-                  <button
-                    onClick={addTask}
-                    disabled={!newTask.trim()}
-                    className="w-full px-3 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
-                  >
-                    <Plus className="w-4 h-4" />
-                    추가
-                  </button>
-                </div>
+        <div className="mt-4 bg-white rounded-lg shadow-sm border border-gray-200 p-4">
+          <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-gradient-to-r from-yellow-400 to-orange-500 rounded-full flex items-center justify-center">
+                <span className="text-white font-bold text-sm">Lv.{userLevel}</span>
               </div>
-
-              <div className="flex-1 p-4 overflow-y-auto">
-                {todos.map(task => (
-                  <TodoItem key={task.id} task={task} />
-                ))}
-                {todos.length === 0 && (
-                  <div className="text-center py-12">
-                    <Circle className="w-12 h-12 mx-auto mb-3 text-gray-300" />
-                    <p className="text-sm text-gray-500">아직 할일이 없습니다</p>
-                    <p className="text-xs text-gray-400 mt-1">새로운 작업을 추가해보세요</p>
-                  </div>
-                )}
+              <div>
+                <h3 className="font-semibold text-gray-900">멀티태스킹 마스터</h3>
+                <p className="text-xs text-gray-500">다음 레벨까지 {getXPForNextLevel(userLevel) - userXP} XP</p>
               </div>
+            </div>
+            <div className="text-right">
+              <p className="text-sm font-medium text-gray-900">{userXP} XP</p>
+              <p className="text-xs text-gray-500">총 {doneTasks.length}개 완료</p>
             </div>
           </div>
 
-          <div className="flex-1">
-            <div className="mb-4">
-              <h3 className="font-semibold text-gray-900 flex items-center gap-2">
-                <div className="w-4 h-4 bg-yellow-500 rounded-full"></div>
-                Doing
-                <span className="bg-yellow-100 text-yellow-800 px-2 py-1 rounded-full text-xs font-medium">
-                  {doingTasks.length}
+          {/* XP 진행바 */}
+          <div className="w-full bg-gray-200 rounded-full h-2">
+            <div
+              className="bg-gradient-to-r from-blue-500 to-purple-600 h-2 rounded-full transition-all duration-500"
+              style={{ width: `${(userXP / getXPForNextLevel(userLevel)) * 100}%` }}
+            ></div>
+          </div>
+        </div>
+      </div>
+
+      <div className="flex gap-6 h-[calc(100vh-200px)]">
+        <div className="w-80 flex-shrink-0">
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200 h-full flex flex-col">
+            <div className="p-4 border-b border-gray-100">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="font-semibold text-gray-900 flex items-center gap-2">
+                  <Circle className="w-4 h-4 text-gray-400" />
+                  To do
+                </h3>
+                <span className="bg-gray-100 text-gray-600 px-2 py-1 rounded-full text-xs font-medium">
+                  {todos.length}
                 </span>
-              </h3>
+              </div>
+
+              <div className="space-y-2">
+                <textarea
+                  value={newTask}
+                  onChange={(e) => setNewTask(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                      e.preventDefault();
+                      addTask();
+                    }
+                  }}
+                  placeholder="할일을 입력하세요..."
+                  className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
+                  rows={2}
+                />
+                <button
+                  onClick={addTask}
+                  disabled={!newTask.trim()}
+                  className="w-full px-3 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
+                >
+                  <Plus className="w-4 h-4" />
+                  추가
+                </button>
+              </div>
             </div>
 
-            <div className="flex gap-4 overflow-x-auto pb-4 h-[calc(100%-60px)]">
-              {doingTasks.map(task => (
-                <DoingColumn key={task.id} task={task} />
+            <div className="flex-1 p-4 overflow-y-auto">
+              {todos.map(task => (
+                <TodoItem key={task.id} task={task} />
               ))}
-              {doingTasks.length === 0 && (
-                <div className="flex-1 bg-white rounded-lg border border-gray-200 shadow-sm p-12 text-center">
-                  <Sparkles className="w-16 h-16 mx-auto mb-4 text-gray-300" />
-                  <h4 className="text-lg font-medium text-gray-900 mb-2">시작할 준비가 되었나요?</h4>
-                  <p className="text-sm text-gray-500">To do에서 작업을 선택하고 '시작' 버튼을 눌러보세요</p>
+              {todos.length === 0 && (
+                <div className="text-center py-12">
+                  <Circle className="w-12 h-12 mx-auto mb-3 text-gray-300" />
+                  <p className="text-sm text-gray-500">아직 할일이 없습니다</p>
+                  <p className="text-xs text-gray-400 mt-1">새로운 작업을 추가해보세요</p>
                 </div>
               )}
             </div>
           </div>
+        </div>
 
-          <div className="w-80 flex-shrink-0">
-            <div className="bg-white rounded-lg shadow-sm border border-gray-200 h-full flex flex-col">
-              <div className="p-4 border-b border-gray-100">
-                <div className="flex items-center justify-between">
-                  <h3 className="font-semibold text-gray-900 flex items-center gap-2">
-                    <div className="w-4 h-4 bg-green-500 rounded-full"></div>
-                    Done
-                  </h3>
-                  <span className="bg-green-100 text-green-800 px-2 py-1 rounded-full text-xs font-medium">
-                    {doneTasks.length}
-                  </span>
-                </div>
+        <div className="flex-1">
+          <div className="mb-4">
+            <h3 className="font-semibold text-gray-900 flex items-center gap-2">
+              <div className="w-4 h-4 bg-yellow-500 rounded-full"></div>
+              Doing
+              <span className="bg-yellow-100 text-yellow-800 px-2 py-1 rounded-full text-xs font-medium">
+                {doingTasks.length}
+              </span>
+            </h3>
+          </div>
+
+          <div className="flex gap-4 overflow-x-auto pb-4 h-[calc(100%-60px)]">
+            {doingTasks.map(task => (
+              <DoingColumn key={task.id} task={task} />
+            ))}
+            {doingTasks.length === 0 && (
+              <div className="flex-1 bg-white rounded-lg border border-gray-200 shadow-sm p-12 text-center">
+                <Sparkles className="w-16 h-16 mx-auto mb-4 text-gray-300" />
+                <h4 className="text-lg font-medium text-gray-900 mb-2">시작할 준비가 되었나요?</h4>
+                <p className="text-sm text-gray-500">To do에서 작업을 선택하고 '시작' 버튼을 눌러보세요</p>
               </div>
+            )}
+          </div>
+        </div>
 
-              <div className="flex-1 p-4 overflow-y-auto">
-                {doneTasks.map(task => (
-                  <DoneItem key={task.id} task={task} />
-                ))}
-                {doneTasks.length === 0 && (
-                  <div className="text-center py-12">
-                    <CheckCircle className="w-12 h-12 mx-auto mb-3 text-gray-300" />
-                    <p className="text-sm text-gray-500">완료된 작업이 없습니다</p>
-                    <p className="text-xs text-gray-400 mt-1">작업을 완료하면 여기에 표시됩니다</p>
+        <div className="w-80 flex-shrink-0">
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200 h-full flex flex-col">
+            <div className="p-4 border-b border-gray-100">
+              <div className="flex items-center justify-between">
+                <h3 className="font-semibold text-gray-900 flex items-center gap-2">
+                  <div className="w-4 h-4 bg-green-500 rounded-full"></div>
+                  Done
+                </h3>
+                <span className="bg-green-100 text-green-800 px-2 py-1 rounded-full text-xs font-medium">
+                  {doneTasks.length}
+                </span>
+              </div>
+            </div>
+
+            <div className="flex-1 p-4 overflow-y-auto">
+              {doneTasks.map(task => (
+                <DoneItem key={task.id} task={task} />
+              ))}
+              {doneTasks.length === 0 && (
+                <div className="text-center py-12">
+                  <CheckCircle className="w-12 h-12 mx-auto mb-3 text-gray-300" />
+                  <p className="text-sm text-gray-500">완료된 작업이 없습니다</p>
+                  <p className="text-xs text-gray-400 mt-1">작업을 완료하면 여기에 표시됩니다</p>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {confirmModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl max-w-md w-full shadow-xl">
+            <div className="p-6">
+              <div className="text-center">
+                <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <X className="w-6 h-6 text-red-600" />
+                </div>
+                <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                  작업을 처리할 수 없습니다
+                </h3>
+                <div className="mb-4">
+                  <p className="text-sm text-gray-600 mb-1">"{confirmModal.task.title}"</p>
+                  <p className="text-sm text-red-600 mb-2">{confirmModal.message}</p>
+                  <p className="text-xs text-blue-600">💡 {confirmModal.suggestion}</p>
+                </div>
+
+                <div className="border-t border-gray-100 pt-4">
+                  <p className="text-sm text-gray-700 mb-4">이 작업을 삭제하시겠습니까?</p>
+                  <div className="flex gap-3">
+                    <button
+                      onClick={handleCancelDelete}
+                      className="flex-1 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors font-medium"
+                    >
+                      취소
+                    </button>
+                    <button
+                      onClick={handleConfirmDelete}
+                      className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors font-medium"
+                    >
+                      삭제
+                    </button>
                   </div>
-                )}
+                </div>
               </div>
             </div>
           </div>
         </div>
+      )}
 
-        {confirmModal && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-            <div className="bg-white rounded-xl max-w-md w-full shadow-xl">
-              <div className="p-6">
-                <div className="text-center">
-                  <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                    <X className="w-6 h-6 text-red-600" />
-                  </div>
-                  <h3 className="text-lg font-semibold text-gray-900 mb-2">
-                    작업을 처리할 수 없습니다
-                  </h3>
-                  <div className="mb-4">
-                    <p className="text-sm text-gray-600 mb-1">"{confirmModal.task.title}"</p>
-                    <p className="text-sm text-red-600 mb-2">{confirmModal.message}</p>
-                    <p className="text-xs text-blue-600">💡 {confirmModal.suggestion}</p>
-                  </div>
-
-                  <div className="border-t border-gray-100 pt-4">
-                    <p className="text-sm text-gray-700 mb-4">이 작업을 삭제하시겠습니까?</p>
-                    <div className="flex gap-3">
-                      <button
-                        onClick={handleCancelDelete}
-                        className="flex-1 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors font-medium"
-                      >
-                        취소
-                      </button>
-                      <button
-                        onClick={handleConfirmDelete}
-                        className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors font-medium"
-                      >
-                        삭제
-                      </button>
-                    </div>
-                  </div>
-                </div>
+      {showLevelUp && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl max-w-md w-full shadow-xl animate-bounce">
+            <div className="p-6 text-center">
+              <div className="w-16 h-16 bg-gradient-to-r from-yellow-400 to-orange-500 rounded-full flex items-center justify-center mx-auto mb-4">
+                <span className="text-white font-bold text-xl">🎉</span>
               </div>
+              <h3 className="text-xl font-bold text-gray-900 mb-2">레벨 업!</h3>
+              <p className="text-lg text-gray-700 mb-1">축하합니다! 레벨 {userLevel}에 도달했습니다!</p>
+              <p className="text-sm text-gray-500">더 높은 생산성을 향해 나아가고 있어요! 🚀</p>
             </div>
           </div>
-        )}
+        </div>
+      )}
 
-        {undoStack.length > 0 && (
-          <div className="fixed bottom-6 right-6 bg-gray-900 text-white p-4 rounded-lg shadow-xl z-40">
-            <div className="flex items-center gap-3">
-              <div className="flex items-center gap-2">
-                <div className="w-2 h-2 bg-blue-400 rounded-full"></div>
-                <span className="text-sm font-medium">삭제된 항목 {undoStack.length}개</span>
-              </div>
-              <button
-                onClick={performUndo}
-                className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 rounded-md text-xs font-medium transition-colors"
-              >
-                실행 취소 (Ctrl+Z)
-              </button>
+      {undoStack.length > 0 && (
+        <div className="fixed bottom-6 right-6 bg-gray-900 text-white p-4 rounded-lg shadow-xl z-40">
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2">
+              <div className="w-2 h-2 bg-blue-400 rounded-full"></div>
+              <span className="text-sm font-medium">삭제된 항목 {undoStack.length}개</span>
             </div>
+            <button
+              onClick={performUndo}
+              className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 rounded-md text-xs font-medium transition-colors"
+            >
+              실행 취소 (Ctrl+Z)
+            </button>
           </div>
-        )}
-        {/* 기능 소개 섹션 - 푸터 위에 추가 */}
-        <section className="mt-16 bg-white rounded-lg shadow-sm border border-gray-200 p-8">
-          <h2 className="text-2xl font-bold text-gray-900 mb-6 text-center">
-            ADHD 친화적 멀티태스킹의 특별함
-          </h2>
-          
-          <div className="grid md:grid-cols-3 gap-6">
-            <div className="text-center">
-              <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center mx-auto mb-4">
-                <Sparkles className="w-6 h-6 text-blue-600" />
-              </div>
-              <h3 className="font-semibold text-gray-800 mb-2">AI 자동 분할</h3>
-              <p className="text-sm text-gray-600">
-                큰 작업을 ADHD에 최적화된 작은 단위로 자동 분할하여 
-                실행 가능한 단계로 만들어드립니다.
-              </p>
+        </div>
+      )}
+      {/* 기능 소개 섹션 - 푸터 위에 추가 */}
+      <section className="mt-16 bg-white rounded-lg shadow-sm border border-gray-200 p-8">
+        <h2 className="text-2xl font-bold text-gray-900 mb-6 text-center">
+          ADHD 친화적 멀티태스킹의 특별함
+        </h2>
+
+        <div className="grid md:grid-cols-3 gap-6">
+          <div className="text-center">
+            <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center mx-auto mb-4">
+              <Sparkles className="w-6 h-6 text-blue-600" />
             </div>
-            
-            <div className="text-center">
-              <div className="w-12 h-12 bg-yellow-100 rounded-lg flex items-center justify-center mx-auto mb-4">
-                <Clock className="w-6 h-6 text-yellow-600" />
-              </div>
-              <h3 className="font-semibold text-gray-800 mb-2">진행률 시각화</h3>
-              <p className="text-sm text-gray-600">
-                각 작업의 진행 상황을 직관적으로 확인하고
-                성취감을 느낄 수 있는 시각적 피드백을 제공합니다.
-              </p>
-            </div>
-            
-            <div className="text-center">
-              <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center mx-auto mb-4">
-                <CheckCircle className="w-6 h-6 text-green-600" />
-              </div>
-              <h3 className="font-semibold text-gray-800 mb-2">멀티태스킹 지원</h3>
-              <p className="text-sm text-gray-600">
-                여러 작업을 동시에 진행하면서도 
-                각각의 진행도를 체계적으로 관리할 수 있습니다.
-              </p>
-            </div>
+            <h3 className="font-semibold text-gray-800 mb-2">AI 자동 분할</h3>
+            <p className="text-sm text-gray-600">
+              큰 작업을 ADHD에 최적화된 작은 단위로 자동 분할하여
+              실행 가능한 단계로 만들어드립니다.
+            </p>
           </div>
 
-          <div className="mt-8 bg-blue-50 rounded-lg p-6">
-            <h3 className="text-lg font-semibold text-blue-900 mb-3">
-              🧠 ADHD를 위한 특별한 설계
-            </h3>
-            <div className="grid md:grid-cols-2 gap-4 text-sm text-blue-800">
-              <div>
-                <h4 className="font-medium mb-2">• 집중력 향상을 위한 기능</h4>
-                <p className="text-blue-700">큰 작업을 작은 단위로 나누어 압박감을 줄이고 성취감을 높입니다.</p>
-              </div>
-              <div>
-                <h4 className="font-medium mb-2">• 시각적 진행 추적</h4>
-                <p className="text-blue-700">명확한 진행률 표시로 현재 상황을 한눈에 파악할 수 있습니다.</p>
-              </div>
-              <div>
-                <h4 className="font-medium mb-2">• 유연한 작업 관리</h4>
-                <p className="text-blue-700">언제든 수정, 삭제, 재분할이 가능하여 변화하는 상황에 대응합니다.</p>
-              </div>
-              <div>
-                <h4 className="font-medium mb-2">• 실행 취소 기능</h4>
-                <p className="text-blue-700">실수로 삭제한 작업을 쉽게 복구할 수 있는 안전망을 제공합니다.</p>
-              </div>
+          <div className="text-center">
+            <div className="w-12 h-12 bg-yellow-100 rounded-lg flex items-center justify-center mx-auto mb-4">
+              <Clock className="w-6 h-6 text-yellow-600" />
+            </div>
+            <h3 className="font-semibold text-gray-800 mb-2">진행률 시각화</h3>
+            <p className="text-sm text-gray-600">
+              각 작업의 진행 상황을 직관적으로 확인하고
+              성취감을 느낄 수 있는 시각적 피드백을 제공합니다.
+            </p>
+          </div>
+
+          <div className="text-center">
+            <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center mx-auto mb-4">
+              <CheckCircle className="w-6 h-6 text-green-600" />
+            </div>
+            <h3 className="font-semibold text-gray-800 mb-2">멀티태스킹 지원</h3>
+            <p className="text-sm text-gray-600">
+              여러 작업을 동시에 진행하면서도
+              각각의 진행도를 체계적으로 관리할 수 있습니다.
+            </p>
+          </div>
+        </div>
+
+        <div className="mt-8 bg-blue-50 rounded-lg p-6">
+          <h3 className="text-lg font-semibold text-blue-900 mb-3">
+            🧠 ADHD를 위한 특별한 설계
+          </h3>
+          <div className="grid md:grid-cols-2 gap-4 text-sm text-blue-800">
+            <div>
+              <h4 className="font-medium mb-2">• 집중력 향상을 위한 기능</h4>
+              <p className="text-blue-700">큰 작업을 작은 단위로 나누어 압박감을 줄이고 성취감을 높입니다.</p>
+            </div>
+            <div>
+              <h4 className="font-medium mb-2">• 시각적 진행 추적</h4>
+              <p className="text-blue-700">명확한 진행률 표시로 현재 상황을 한눈에 파악할 수 있습니다.</p>
+            </div>
+            <div>
+              <h4 className="font-medium mb-2">• 유연한 작업 관리</h4>
+              <p className="text-blue-700">언제든 수정, 삭제, 재분할이 가능하여 변화하는 상황에 대응합니다.</p>
+            </div>
+            <div>
+              <h4 className="font-medium mb-2">• 실행 취소 기능</h4>
+              <p className="text-blue-700">실수로 삭제한 작업을 쉽게 복구할 수 있는 안전망을 제공합니다.</p>
             </div>
           </div>
-        </section>
-      </div>
+        </div>
+      </section>
     </div>
   );
 }
