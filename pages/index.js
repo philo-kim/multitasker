@@ -90,13 +90,13 @@ export default function Multitasker() {
     });
   }, [userLevel]);
 
-  // ✅ addXP 함수 아래에 이 함수들 추가
+  // ✅ 기존 편집 함수들을 모두 삭제하고 이것들로 교체
   const startEdit = (type, item, taskId = null) => {
     setEditingItem({
       type,
       id: item.id,
       taskId,
-      values: {
+      originalValues: {
         title: item.title,
         description: item.description || '',
         estimatedTime: item.estimatedTime || ''
@@ -108,20 +108,32 @@ export default function Multitasker() {
     setEditingItem(null);
   };
 
-  const updateEditValue = (field, value) => {
-    setEditingItem(prev => ({
-      ...prev,
-      values: { ...prev.values, [field]: value }
-    }));
-  };
-
   const saveEdit = () => {
     if (!editingItem) return;
+
+    // DOM에서 직접 값 읽기
+    const getCurrentValues = () => {
+      if (editingItem.type === 'todo') {
+        const input = document.querySelector(`[data-edit-id="${editingItem.id}"]`);
+        return { title: input?.value || '' };
+      } else {
+        const titleInput = document.querySelector(`[data-edit-id="${editingItem.id}-title"]`);
+        const descInput = document.querySelector(`[data-edit-id="${editingItem.id}-desc"]`);
+        const timeInput = document.querySelector(`[data-edit-id="${editingItem.id}-time"]`);
+        return {
+          title: titleInput?.value || '',
+          description: descInput?.value || '',
+          estimatedTime: timeInput?.value || ''
+        };
+      }
+    };
+
+    const values = getCurrentValues();
 
     if (editingItem.type === 'todo') {
       setTodos(prev => prev.map(todo =>
         todo.id === editingItem.id
-          ? { ...todo, title: editingItem.values.title }
+          ? { ...todo, title: values.title }
           : todo
       ));
     } else if (editingItem.type === 'subtask') {
@@ -131,12 +143,7 @@ export default function Multitasker() {
             ...task,
             subtasks: task.subtasks.map(sub =>
               sub.id === editingItem.id
-                ? {
-                  ...sub,
-                  title: editingItem.values.title,
-                  description: editingItem.values.description,
-                  estimatedTime: editingItem.values.estimatedTime
-                }
+                ? { ...sub, ...values }
                 : sub
             )
           }
@@ -146,6 +153,14 @@ export default function Multitasker() {
 
     setEditingItem(null);
   };
+
+  const updateEditValue = (field, value) => {
+    setEditingItem(prev => ({
+      ...prev,
+      values: { ...prev.values, [field]: value }
+    }));
+  };
+
 
   // ✅ 여기에 추가
   const spinRewardWheel = () => {
@@ -476,15 +491,19 @@ export default function Multitasker() {
       {editingItem && editingItem.type === 'todo' && editingItem.id === task.id ? (
         <div className="p-4">
           <input
-            type="text"
-            value={editingItem.values.title}
-            onChange={(e) => updateEditValue('title', e.target.value)}
+            ref={(input) => {
+              if (input) {
+                input.value = editingItem.originalValues.title;
+                input.focus();
+                input.setSelectionRange(input.value.length, input.value.length);
+              }
+            }}
+            data-edit-id={editingItem.id}
             onKeyDown={(e) => {
               if (e.key === 'Enter') saveEdit();
               if (e.key === 'Escape') cancelEdit();
             }}
             className="w-full text-sm font-medium border-2 border-blue-500 rounded px-3 py-2 mb-3 focus:outline-none focus:border-blue-600"
-            autoFocus
           />
           <div className="flex gap-2">
             <button
@@ -659,28 +678,39 @@ export default function Multitasker() {
             {editingItem && editingItem.type === 'subtask' && editingItem.id === subtask.id ? (
               <div className="bg-gray-50 rounded-lg p-3 border border-gray-200">
                 <input
-                  type="text"
-                  value={editingItem.values.title}
-                  onChange={(e) => updateEditValue('title', e.target.value)}
+                  ref={(input) => {
+                    if (input) {
+                      input.value = editingItem.originalValues.title;
+                      input.focus();
+                      input.setSelectionRange(input.value.length, input.value.length);
+                    }
+                  }}
+                  data-edit-id={`${editingItem.id}-title`}
                   onKeyDown={(e) => {
                     if (e.key === 'Enter') saveEdit();
                     if (e.key === 'Escape') cancelEdit();
                   }}
                   className="w-full text-sm font-medium border border-gray-300 rounded px-2 py-1 mb-2 focus:outline-none focus:border-blue-500"
                   placeholder="작업 제목"
-                  autoFocus
                 />
                 <textarea
-                  value={editingItem.values.description}
-                  onChange={(e) => updateEditValue('description', e.target.value)}
+                  ref={(textarea) => {
+                    if (textarea) {
+                      textarea.value = editingItem.originalValues.description;
+                    }
+                  }}
+                  data-edit-id={`${editingItem.id}-desc`}
                   className="w-full text-xs border border-gray-300 rounded px-2 py-1 mb-2 resize-none focus:outline-none focus:border-blue-500"
                   placeholder="작업 설명"
                   rows={2}
                 />
                 <input
-                  type="text"
-                  value={editingItem.values.estimatedTime}
-                  onChange={(e) => updateEditValue('estimatedTime', e.target.value)}
+                  ref={(input) => {
+                    if (input) {
+                      input.value = editingItem.originalValues.estimatedTime;
+                    }
+                  }}
+                  data-edit-id={`${editingItem.id}-time`}
                   className="w-full text-xs border border-gray-300 rounded px-2 py-1 mb-3 focus:outline-none focus:border-blue-500"
                   placeholder="예상 시간"
                 />
