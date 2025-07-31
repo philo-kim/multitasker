@@ -27,11 +27,15 @@ export default function Multitasker() {
         body: JSON.stringify({ task: task.title }),
       });
 
-      if (!response.ok) {
-        throw new Error('API 요청 실패');
-      }
-
       const data = await response.json();
+
+      // 유효하지 않은 작업인 경우
+      if (!response.ok || data.error) {
+        alert(`❌ ${data.message}\n\n💡 ${data.suggestion || '다시 시도해주세요.'}`);
+        // 처리 중 상태 해제
+        setIsBreakingDown(prev => prev.filter(id => id !== task.id));
+        return;
+      }
       
       const subtasks = data.subtasks.map((subtask, index) => ({
         id: Date.now() + index,
