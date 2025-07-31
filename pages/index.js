@@ -8,6 +8,7 @@ export default function Multitasker() {
   const [newTask, setNewTask] = useState('');
   const [isBreakingDown, setIsBreakingDown] = useState([]);
   const [editingSubtask, setEditingSubtask] = useState(null);
+  const [confirmModal, setConfirmModal] = useState(null);
   const [expandedDone, setExpandedDone] = useState({});
 
   // 실제 Claude API를 사용한 태스크 분할 함수
@@ -28,13 +29,30 @@ export default function Multitasker() {
       });
 
       const data = await response.json();
+      
+      // 디버깅용 로그
+      console.log('Response status:', response.status);
+      console.log('Response data:', data);
 
-      // 유효하지 않은 작업인 경우
-      if (!response.ok || data.error) {
-        alert(`❌ ${data.message}\n\n💡 ${data.suggestion || '다시 시도해주세요.'}`);
+      // 유효하지 않은 작업인 경우 (상태 코드 400 또는 error 플래그)
+      if (response.status === 400 || data.error) {
+        console.log('Invalid task detected');
+        
+        // 커스텀 모달로 확인
+        setConfirmModal({
+          task: task,
+          message: data.message || '분할할 수 없는 작업입니다',
+          suggestion: data.suggestion || '더 구체적이고 실행 가능한 작업을 입력해주세요'
+        });
+        
         // 처리 중 상태 해제
         setIsBreakingDown(prev => prev.filter(id => id !== task.id));
         return;
+      }
+
+      // 정상적인 경우: subtasks 처리
+      if (!data.subtasks || !Array.isArray(data.subtasks)) {
+        throw new Error('Invalid subtasks format');
       }
       
       const subtasks = data.subtasks.map((subtask, index) => ({
@@ -214,6 +232,18 @@ export default function Multitasker() {
   // 소주제 수정 취소
   const cancelSubtaskEdit = () => {
     setEditingSubtask(null);
+  };
+
+  // 커스텀 확인 모달 함수들
+  const handleConfirmDelete = () => {
+    if (confirmModal) {
+      setTodos(prev => prev.filter(t => t.id !== confirmModal.task.id));
+      setConfirmModal(null);
+    }
+  };
+
+  const handleCancelDelete = () => {
+    setConfirmModal(null);
   };
 
   const TodoItem = ({ task }) => (
@@ -516,6 +546,40 @@ export default function Multitasker() {
             <li>• Done에서 완료된 작업을 클릭하면 세부사항을 볼 수 있습니다</li>
           </ul>
         </div>
+
+        {/* 커스텀 확인 모달 */}
+        {confirmModal && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-white rounded-lg p-6 max-w-md mx-4 shadow-xl">
+              <div className="text-center">
+                <div className="text-4xl mb-4">❌</div>
+                <h3 className="text-lg font-semibold text-gray-800 mb-2">
+                  "{confirmModal.task.title}"
+                </h3>
+                <p className="text-gray-600 mb-2">{confirmModal.message}</p>
+                <p className="text-blue-600 text-sm mb-6">💡 {confirmModal.suggestion}</p>
+                
+                <div className="border-t pt-4">
+                  <p className="text-gray-700 mb-4">이 작업을 삭제하시겠습니까?</p>
+                  <div className="flex gap-3 justify-center">
+                    <button
+                      onClick={handleCancelDelete}
+                      className="px-4 py-2 bg-gray-500 text-white rounded hover:bg-gray-600"
+                    >
+                      취소
+                    </button>
+                    <button
+                      onClick={handleConfirmDelete}
+                      className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700"
+                    >
+                      삭제
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
