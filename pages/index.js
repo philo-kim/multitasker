@@ -51,18 +51,27 @@ export default function Multitasker() {
 
   const addXP = useCallback((amount, source) => {
     setUserXP(prev => {
-      const newXP = Math.max(0, prev + amount); // ✅ XP가 0 아래로 내려가지 않게
-      const xpForNext = getXPForNextLevel(userLevel);
-      
-      // 레벨업은 양수 XP일 때만
-      if (amount > 0 && newXP >= xpForNext) {
-        setUserLevel(prevLevel => prevLevel + 1);
+      let newXP = prev + amount;
+      let currentLevel = userLevel;
+
+      // 레벨업 처리
+      while (newXP >= getXPForNextLevel(currentLevel)) {
+        newXP -= getXPForNextLevel(currentLevel);
+        currentLevel++;
+        setUserLevel(currentLevel);
         setShowLevelUp(true);
         setTimeout(() => setShowLevelUp(false), 3000);
-        return newXP - xpForNext;
       }
-      
-      return newXP;
+
+      // ✅ 레벨 다운 처리
+      while (newXP < 0 && currentLevel > 1) {
+        currentLevel--;
+        newXP += getXPForNextLevel(currentLevel);
+        setUserLevel(currentLevel);
+      }
+
+      // 1레벨에서는 XP가 0 아래로 안 내려감
+      return Math.max(0, newXP);
     });
   }, [userLevel]);
 
@@ -263,13 +272,13 @@ export default function Multitasker() {
       if (task.id === taskId) {
         const subtask = task.subtasks.find(s => s.id === subtaskId);
         const willBeCompleted = !subtask.completed;
-        
+
         const updatedSubtasks = task.subtasks.map(subtask =>
           subtask.id === subtaskId
             ? { ...subtask, completed: !subtask.completed }
             : subtask
         );
-  
+
         // ✅ XP 지급/차감 로직
         if (willBeCompleted) {
           // 미완료 → 완료: XP 지급
@@ -278,12 +287,12 @@ export default function Multitasker() {
           // 완료 → 미완료: XP 차감
           addXP(-calculateXP('SUBTASK_COMPLETE'), `서브태스크 취소: ${subtask.title}`);
         }
-  
+
         const allCompleted = updatedSubtasks.every(subtask => subtask.completed);
-  
+
         if (allCompleted) {
           addXP(calculateXP('TASK_COMPLETE', task.subtasks.length), `태스크 완료: ${task.title}`);
-          
+
           const completedTask = {
             ...task,
             subtasks: updatedSubtasks,
@@ -292,7 +301,7 @@ export default function Multitasker() {
           setDoneTasks(prev => [...prev, completedTask]);
           return null;
         }
-  
+
         return { ...task, subtasks: updatedSubtasks };
       }
       return task;
@@ -503,6 +512,14 @@ export default function Multitasker() {
   const rerollTask = async (taskId) => {
     const task = doingTasks.find(t => t.id === taskId);
     if (!task) return;
+
+    // ✅ 이 부분을 rerollTask 함수 시작 부분에 추가
+    const completedSubtasks = task.subtasks.filter(s => s.completed);
+    const lostXP = completedSubtasks.length * calculateXP('SUBTASK_COMPLETE');
+
+    if (lostXP > 0) {
+      addXP(-lostXP, `리롤로 인한 진행도 초기화`);
+    }
 
     // 다시 분할 중 상태로 설정
     setIsBreakingDown(prev => [...prev, taskId]);
