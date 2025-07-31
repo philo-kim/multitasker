@@ -135,14 +135,23 @@ export default function Multitasker() {
   const addTask = () => {
     if (!newTask.trim()) return;
 
+    // 입력값 정리
+    const trimmedTask = newTask.trim();
+
+    // 중복 방지를 위한 debouncing
+    if (todos.some(task => task.title === trimmedTask)) {
+      setNewTask('');
+      return;
+    }
+
     const task = {
-      id: Date.now() + Math.random(), // 고유성 보장
-      title: newTask.trim(), // trim() 추가
+      id: `task-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`, // 더 안전한 ID 생성
+      title: trimmedTask,
       createdAt: new Date().toLocaleString()
     };
 
     setTodos(prev => [...prev, task]);
-    setNewTask(''); // 입력창 초기화
+    setNewTask('');
   };
 
   const toggleSubtask = (taskId, subtaskId) => {
@@ -373,6 +382,51 @@ export default function Multitasker() {
     </div>
   );
 
+  const rerollTask = async (taskId) => {
+    const task = doingTasks.find(t => t.id === taskId);
+    if (!task) return;
+
+    // 다시 분할 중 상태로 설정
+    setIsBreakingDown(prev => [...prev, taskId]);
+
+    try {
+      const response = await fetch('/api/break-down-task', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ task: task.title }),
+      });
+
+      const data = await response.json();
+
+      if (response.status === 400 || data.error) {
+        setIsBreakingDown(prev => prev.filter(id => id !== taskId));
+        return;
+      }
+
+      const newSubtasks = data.subtasks.map((subtask, index) => ({
+        id: Date.now() + index + Math.random(), // 고유성 보장
+        title: subtask.title,
+        description: subtask.description || '',
+        estimatedTime: subtask.estimatedTime,
+        completed: false
+      }));
+
+      // 기존 작업의 서브태스크만 교체
+      setDoingTasks(prev => prev.map(t =>
+        t.id === taskId
+          ? { ...t, subtasks: newSubtasks, rerolledAt: new Date().toLocaleString() }
+          : t
+      ));
+
+    } catch (error) {
+      console.error('Reroll 실패:', error);
+    }
+
+    setIsBreakingDown(prev => prev.filter(id => id !== taskId));
+  };
+
   const DoingColumn = ({ task }) => (
     <div className="bg-white rounded-lg shadow-sm border border-gray-200 w-80 flex-shrink-0">
       <div className="p-4 border-b border-gray-100">
@@ -387,6 +441,21 @@ export default function Multitasker() {
                 {task.subtasks.filter(s => s.completed).length}/{task.subtasks.length}
               </span>
             </div>
+            {/* 👇 Reroll 버튼 추가 */}
+            <button
+              onClick={() => rerollTask(task.id)}
+              disabled={isBreakingDown.includes(task.id)}
+              className="p-1 text-gray-400 hover:text-purple-600 hover:bg-purple-50 rounded transition-colors disabled:opacity-50"
+              title="다시 분할하기"
+            >
+              {isBreakingDown.includes(task.id) ? (
+                <div className="w-4 h-4 border-2 border-purple-600 border-t-transparent rounded-full animate-spin"></div>
+              ) : (
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+              )}
+            </button>
             <button
               onClick={() => deleteMainTask(task.id)}
               className="p-1 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
@@ -454,8 +523,8 @@ export default function Multitasker() {
                   <button
                     onClick={() => toggleSubtask(task.id, subtask.id)}
                     className={`mt-0.5 transition-colors ${subtask.completed
-                        ? 'text-green-600 hover:text-green-700'
-                        : 'text-gray-300 hover:text-blue-600'
+                      ? 'text-green-600 hover:text-green-700'
+                      : 'text-gray-300 hover:text-blue-600'
                       }`}
                   >
                     {subtask.completed ? (
@@ -467,8 +536,8 @@ export default function Multitasker() {
 
                   <div className="flex-1 min-w-0">
                     <h5 className={`text-sm font-medium leading-5 ${subtask.completed
-                        ? 'line-through text-gray-500'
-                        : 'text-gray-900'
+                      ? 'line-through text-gray-500'
+                      : 'text-gray-900'
                       }`}>
                       {subtask.title}
                     </h5>
