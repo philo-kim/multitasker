@@ -6,12 +6,16 @@ export default function Multitasker() {
   const [doingTasks, setDoingTasks] = useState([]);
   const [doneTasks, setDoneTasks] = useState([]);
   const [newTask, setNewTask] = useState('');
-  const [isBreakingDown, setIsBreakingDown] = useState(null);
+  const [isBreakingDown, setIsBreakingDown] = useState([]);
   const [expandedDone, setExpandedDone] = useState({});
 
   // 실제 Claude API를 사용한 태스크 분할 함수
   const breakDownTask = async (task) => {
-    setIsBreakingDown(task.id);
+    // 이미 처리 중인 태스크라면 무시
+    if (isBreakingDown.includes(task.id)) return;
+    
+    // 처리 중인 태스크 목록에 추가
+    setIsBreakingDown(prev => [...prev, task.id]);
     
     try {
       const response = await fetch('/api/break-down-task', {
@@ -94,7 +98,8 @@ export default function Multitasker() {
       }]);
     }
     
-    setIsBreakingDown(null);
+    // 처리 완료 후 목록에서 제거
+    setIsBreakingDown(prev => prev.filter(id => id !== task.id));
   };
 
   const addTask = () => {
@@ -151,10 +156,10 @@ export default function Multitasker() {
         </div>
         <button
           onClick={() => breakDownTask(task)}
-          disabled={isBreakingDown === task.id}
+          disabled={isBreakingDown.includes(task.id)}
           className="ml-3 px-3 py-1 bg-blue-600 text-white text-sm rounded hover:bg-blue-700 disabled:opacity-50 flex items-center gap-1"
         >
-          {isBreakingDown === task.id ? (
+          {isBreakingDown.includes(task.id) ? (
             <>
               <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
               분할 중...
