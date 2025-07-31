@@ -257,18 +257,17 @@ export default function Multitasker() {
     debouncedAddTask();
   };
 
-  // 기존 toggleSubtask 함수에서 서브태스크 완료 시 XP 추가
   const toggleSubtask = (taskId, subtaskId) => {
     setDoingTasks(prev => prev.map(task => {
       if (task.id === taskId) {
+        const subtask = task.subtasks.find(s => s.id === subtaskId);
         const updatedSubtasks = task.subtasks.map(subtask =>
           subtask.id === subtaskId
             ? { ...subtask, completed: !subtask.completed }
             : subtask
         );
 
-        // XP 추가 로직
-        const subtask = task.subtasks.find(s => s.id === subtaskId);
+        // ✅ 수정: 미완료 → 완료로 바뀔 때만 XP 지급
         if (subtask && !subtask.completed) {
           addXP(calculateXP('SUBTASK_COMPLETE'), `서브태스크 완료: ${subtask.title}`);
         }
@@ -276,7 +275,7 @@ export default function Multitasker() {
         const allCompleted = updatedSubtasks.every(subtask => subtask.completed);
 
         if (allCompleted) {
-          // 전체 태스크 완료 시 보너스 XP
+          // ✅ 전체 태스크 완료 시에만 보너스 XP
           addXP(calculateXP('TASK_COMPLETE', task.subtasks.length), `태스크 완료: ${task.title}`);
 
           const completedTask = {
