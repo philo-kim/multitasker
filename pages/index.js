@@ -996,7 +996,7 @@ export default function Multitasker() {
         </div>
       </div>
 
-      <div className="flex gap-6 h-[calc(100vh-200px)]">
+      <div className="flex gap-6 h-[calc(100vh-200px)] px-6">
         <div className="w-80 flex-shrink-0">
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 h-full flex flex-col">
             <div className="p-4 border-b border-gray-100">
@@ -1219,8 +1219,8 @@ export default function Multitasker() {
                   onClick={() => rerollTask(rerollModal.taskId, rerollModal.requirements)}
                   disabled={isBreakingDown.includes(rerollModal.taskId)}
                   className={`flex-1 px-4 py-2 rounded-lg transition-colors flex items-center justify-center gap-2 ${isBreakingDown.includes(rerollModal.taskId)
-                      ? 'bg-gray-400 text-gray-200 cursor-not-allowed'
-                      : 'bg-purple-600 text-white hover:bg-purple-700'
+                    ? 'bg-gray-400 text-gray-200 cursor-not-allowed'
+                    : 'bg-purple-600 text-white hover:bg-purple-700'
                     }`}
                 >
                   {isBreakingDown.includes(rerollModal.taskId) ? (
