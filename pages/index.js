@@ -28,6 +28,9 @@ export default function Multitasker() {
   const [userLevel, setUserLevel] = useState(1);
   const [userXP, setUserXP] = useState(0);
   const [showLevelUp, setShowLevelUp] = useState(false);
+  const [showRewardWheel, setShowRewardWheel] = useState(false);
+  const [isWheelSpinning, setIsWheelSpinning] = useState(false);
+  const [wheelResult, setWheelResult] = useState(null);
 
   const STORAGE_KEYS = {
     TODOS: 'multitasker_todos',
@@ -36,6 +39,13 @@ export default function Multitasker() {
     USER_LEVEL: 'multitasker_level',
     USER_XP: 'multitasker_xp'
   };
+
+  const REWARD_WHEEL = [
+    { label: "XP +10", value: 10, color: "#10B981", weight: 40 },
+    { label: "XP +20", value: 20, color: "#3B82F6", weight: 35 },
+    { label: "XP +30", value: 30, color: "#F59E0B", weight: 20 },
+    { label: "XP +50", value: 50, color: "#EF4444", weight: 5 }
+  ];
 
   const calculateXP = (action, taskComplexity = 1) => {
     const baseXP = {
@@ -54,31 +64,64 @@ export default function Multitasker() {
       let newXP = prev + amount;
       let currentLevel = userLevel;
       let leveledUp = false;  // ✅ 플래그 추가
-  
+
       // 레벨업 처리
       while (newXP >= getXPForNextLevel(currentLevel)) {
         newXP -= getXPForNextLevel(currentLevel);
         currentLevel++;
         leveledUp = true;  // ✅ 실제 레벨업 발생 기록
       }
-  
+
       // ✅ 실제로 레벨업했을 때만 알림
       if (leveledUp) {
         setUserLevel(currentLevel);
         setShowLevelUp(true);
         setTimeout(() => setShowLevelUp(false), 3000);
       }
-  
+
       // 레벨 다운 처리
       while (newXP < 0 && currentLevel > 1) {
         currentLevel--;
         newXP += getXPForNextLevel(currentLevel);
         setUserLevel(currentLevel);
       }
-  
+
       return Math.max(0, newXP);
     });
   }, [userLevel]);
+
+  // ✅ 여기에 추가
+  const spinRewardWheel = () => {
+    setIsWheelSpinning(true);
+
+    // 가중치 기반 랜덤 선택
+    const totalWeight = REWARD_WHEEL.reduce((sum, reward) => sum + reward.weight, 0);
+    let random = Math.random() * totalWeight;
+
+    let selectedReward = REWARD_WHEEL[0];
+    for (const reward of REWARD_WHEEL) {
+      random -= reward.weight;
+      if (random <= 0) {
+        selectedReward = reward;
+        break;
+      }
+    }
+
+    // 3초 애니메이션 후 결과
+    setTimeout(() => {
+      setIsWheelSpinning(false);
+      setWheelResult(selectedReward);
+
+      // 보상 지급
+      addXP(selectedReward.value, `🎰 돌림판 보상`);
+
+      // 3초 후 닫기
+      setTimeout(() => {
+        setShowRewardWheel(false);
+        setWheelResult(null);
+      }, 3000);
+    }, 3000);
+  };
 
 
   const saveToLocal = () => {
@@ -296,7 +339,7 @@ export default function Multitasker() {
         const allCompleted = updatedSubtasks.every(subtask => subtask.completed);
 
         if (allCompleted) {
-          addXP(calculateXP('TASK_COMPLETE', task.subtasks.length), `태스크 완료: ${task.title}`);
+          setShowRewardWheel(true);
 
           const completedTask = {
             ...task,
@@ -722,6 +765,83 @@ export default function Multitasker() {
     </div>
   );
 
+  // 🔍 기존 컴포넌트들 (TodoItem, DoingColumn 등) 아래에 추가
+  const RewardWheel = ({ onSpin, isSpinning, result }) => {
+    const [rotation, setRotation] = useState(0);
+
+    const spinWheel = () => {
+      if (isSpinning) return;
+
+      const spins = 5 + Math.random() * 5;
+      const finalRotation = spins * 360 + Math.random() * 360;
+      setRotation(finalRotation);
+
+      onSpin();
+    };
+
+    return (
+      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <div className="bg-white rounded-xl p-8 text-center max-w-md w-full mx-4 shadow-2xl">
+          <h3 className="text-2xl font-bold mb-2">🎉 태스크 완료!</h3>
+          <p className="text-gray-600 mb-6">보상을 받아보세요!</p>
+
+          {/* 돌림판 */}
+          <div className="relative w-48 h-48 mx-auto mb-6">
+            <div
+              className="w-full h-full rounded-full border-4 border-gray-300 relative transition-transform duration-3000 ease-out"
+              style={{
+                transform: `rotate(${rotation}deg)`,
+                background: `conic-gradient(
+                from 0deg,
+                #10B981 0deg 144deg,
+                #3B82F6 144deg 270deg, 
+                #F59E0B 270deg 342deg,
+                #EF4444 342deg 360deg
+              )`
+              }}
+            >
+              <div className="absolute top-12 left-1/2 transform -translate-x-1/2 text-white font-bold text-sm">+10</div>
+              <div className="absolute right-12 top-1/2 transform -translate-y-1/2 text-white font-bold text-sm">+20</div>
+              <div className="absolute bottom-16 left-1/2 transform -translate-x-1/2 text-white font-bold text-sm">+30</div>
+              <div className="absolute top-4 left-1/2 transform -translate-x-1/2 text-white font-bold text-sm">+50</div>
+            </div>
+
+            <div className="absolute top-0 left-1/2 transform -translate-x-1/2 w-0 h-0 border-l-4 border-r-4 border-b-8 border-transparent border-b-red-500 z-10"></div>
+          </div>
+
+          {result && !isSpinning && (
+            <div className="mb-4 p-4 bg-gradient-to-r from-yellow-100 to-orange-100 rounded-lg">
+              <div className="text-2xl mb-2">🎊</div>
+              <div className="text-lg font-bold text-orange-800">
+                축하합니다! {result.label}을 획득했습니다!
+              </div>
+            </div>
+          )}
+
+          <button
+            onClick={spinWheel}
+            disabled={isSpinning}
+            className={`px-6 py-3 font-bold rounded-lg transition-all ${isSpinning
+                ? 'bg-gray-400 text-gray-200 cursor-not-allowed'
+                : 'bg-gradient-to-r from-purple-600 to-pink-600 text-white hover:from-purple-700 hover:to-pink-700 hover:scale-105'
+              }`}
+          >
+            {isSpinning ? (
+              <div className="flex items-center gap-2">
+                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                돌리는 중...
+              </div>
+            ) : result ? (
+              "완료!"
+            ) : (
+              "🎰 돌림판 돌리기!"
+            )}
+          </button>
+        </div>
+      </div>
+    );
+  };
+
   const DoneItem = ({ task }) => (
     <div className="bg-white rounded-lg border border-gray-200 shadow-sm mb-3">
       <div
@@ -968,6 +1088,14 @@ export default function Multitasker() {
             </div>
           </div>
         </div>
+      )}
+
+      {showRewardWheel && (
+        <RewardWheel
+          onSpin={spinRewardWheel}
+          isSpinning={isWheelSpinning}
+          result={wheelResult}
+        />
       )}
 
       {undoStack.length > 0 && (
