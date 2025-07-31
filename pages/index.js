@@ -31,6 +31,7 @@ export default function Multitasker() {
   const [showRewardWheel, setShowRewardWheel] = useState(false);
   const [isWheelSpinning, setIsWheelSpinning] = useState(false);
   const [wheelResult, setWheelResult] = useState(null);
+  const [isComposing, setIsComposing] = useState(false);
 
   const STORAGE_KEYS = {
     TODOS: 'multitasker_todos',
@@ -484,7 +485,20 @@ export default function Multitasker() {
               }
             }}
             value={editingTodo.title}
-            onChange={(e) => setEditingTodo(prev => ({ ...prev, title: e.target.value }))}
+            onChange={(e) => {
+              // 한글 입력 중이 아닐 때만 상태 업데이트
+              if (!isComposing) {
+                setEditingTodo(prev => ({ ...prev, title: e.target.value }));
+              }
+            }}
+            onCompositionStart={() => {
+              setIsComposing(true);
+            }}
+            onCompositionEnd={(e) => {
+              setIsComposing(false);
+              // 한글 입력 완료 시 최종 값으로 업데이트
+              setEditingTodo(prev => ({ ...prev, title: e.target.value }));
+            }}
             onKeyDown={(e) => {
               if (e.key === 'Enter' && !e.shiftKey) {
                 e.preventDefault();
@@ -678,7 +692,16 @@ export default function Multitasker() {
                     }
                   }}
                   value={editingSubtask.title}
-                  onChange={(e) => setEditingSubtask(prev => ({ ...prev, title: e.target.value }))}
+                  onChange={(e) => {
+                    if (!isComposing) {
+                      setEditingSubtask(prev => ({ ...prev, title: e.target.value }));
+                    }
+                  }}
+                  onCompositionStart={() => setIsComposing(true)}
+                  onCompositionEnd={(e) => {
+                    setIsComposing(false);
+                    setEditingSubtask(prev => ({ ...prev, title: e.target.value }));
+                  }}
                   className="w-full text-sm font-medium border-none bg-transparent outline-none mb-2"
                   placeholder="작업 제목"
                 />
