@@ -53,24 +53,29 @@ export default function Multitasker() {
     setUserXP(prev => {
       let newXP = prev + amount;
       let currentLevel = userLevel;
-
+      let leveledUp = false;  // ✅ 플래그 추가
+  
       // 레벨업 처리
       while (newXP >= getXPForNextLevel(currentLevel)) {
         newXP -= getXPForNextLevel(currentLevel);
         currentLevel++;
+        leveledUp = true;  // ✅ 실제 레벨업 발생 기록
+      }
+  
+      // ✅ 실제로 레벨업했을 때만 알림
+      if (leveledUp) {
         setUserLevel(currentLevel);
         setShowLevelUp(true);
         setTimeout(() => setShowLevelUp(false), 3000);
       }
-
-      // ✅ 레벨 다운 처리
+  
+      // 레벨 다운 처리
       while (newXP < 0 && currentLevel > 1) {
         currentLevel--;
         newXP += getXPForNextLevel(currentLevel);
         setUserLevel(currentLevel);
       }
-
-      // 1레벨에서는 XP가 0 아래로 안 내려감
+  
       return Math.max(0, newXP);
     });
   }, [userLevel]);
