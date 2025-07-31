@@ -834,7 +834,7 @@ export default function Multitasker() {
           </div>
         </div>
 
-        <div className="flex-1">
+        <div className="flex-1 min-w-0">
           <div className="mb-4">
             <h3 className="font-semibold text-gray-900 flex items-center gap-2">
               <div className="w-4 h-4 bg-yellow-500 rounded-full"></div>
@@ -845,7 +845,7 @@ export default function Multitasker() {
             </h3>
           </div>
 
-          <div className="flex gap-4 overflow-x-auto pb-4 h-[calc(100%-60px)]">
+          <div className="flex gap-4 overflow-x-auto pb-4 h-[calc(100%-60px)] justify-start">
             {doingTasks.map(task => (
               <DoingColumn key={task.id} task={task} />
             ))}
