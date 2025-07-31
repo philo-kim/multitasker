@@ -51,16 +51,17 @@ export default function Multitasker() {
 
   const addXP = useCallback((amount, source) => {
     setUserXP(prev => {
-      const newXP = prev + amount;
+      const newXP = Math.max(0, prev + amount); // ✅ XP가 0 아래로 내려가지 않게
       const xpForNext = getXPForNextLevel(userLevel);
-
-      if (newXP >= xpForNext) {
+      
+      // 레벨업은 양수 XP일 때만
+      if (amount > 0 && newXP >= xpForNext) {
         setUserLevel(prevLevel => prevLevel + 1);
         setShowLevelUp(true);
         setTimeout(() => setShowLevelUp(false), 3000);
-        return newXP - xpForNext; // 남은 XP
+        return newXP - xpForNext;
       }
-
+      
       return newXP;
     });
   }, [userLevel]);
@@ -261,23 +262,28 @@ export default function Multitasker() {
     setDoingTasks(prev => prev.map(task => {
       if (task.id === taskId) {
         const subtask = task.subtasks.find(s => s.id === subtaskId);
+        const willBeCompleted = !subtask.completed;
+        
         const updatedSubtasks = task.subtasks.map(subtask =>
           subtask.id === subtaskId
             ? { ...subtask, completed: !subtask.completed }
             : subtask
         );
-
-        // ✅ 수정: 미완료 → 완료로 바뀔 때만 XP 지급
-        if (subtask && !subtask.completed) {
+  
+        // ✅ XP 지급/차감 로직
+        if (willBeCompleted) {
+          // 미완료 → 완료: XP 지급
           addXP(calculateXP('SUBTASK_COMPLETE'), `서브태스크 완료: ${subtask.title}`);
+        } else {
+          // 완료 → 미완료: XP 차감
+          addXP(-calculateXP('SUBTASK_COMPLETE'), `서브태스크 취소: ${subtask.title}`);
         }
-
+  
         const allCompleted = updatedSubtasks.every(subtask => subtask.completed);
-
+  
         if (allCompleted) {
-          // ✅ 전체 태스크 완료 시에만 보너스 XP
           addXP(calculateXP('TASK_COMPLETE', task.subtasks.length), `태스크 완료: ${task.title}`);
-
+          
           const completedTask = {
             ...task,
             subtasks: updatedSubtasks,
@@ -286,7 +292,7 @@ export default function Multitasker() {
           setDoneTasks(prev => [...prev, completedTask]);
           return null;
         }
-
+  
         return { ...task, subtasks: updatedSubtasks };
       }
       return task;
