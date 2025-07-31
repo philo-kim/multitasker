@@ -22,7 +22,7 @@ export default function Multitasker() {
   const STORAGE_KEYS = {
     TODOS: 'multitasker_todos',
     DOING: 'multitasker_doing',
-    DONE: 'multitasker_done'
+    DONE: 'multitasker_done',
   USER_LEVEL: 'multitasker_level',
     USER_XP: 'multitasker_xp'
   };
